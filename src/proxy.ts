@@ -65,13 +65,18 @@ export async function proxy(
      * ============================================================
      * PUBLIC ROUTES
      * ============================================================
+     *
+     * These routes must be accessible without authentication.
+     *
+     * PWA files are especially important because the browser must
+     * be able to request them before the user has logged in.
      */
 
     if (
         pathname === "/login" ||
-        pathname.startsWith(
-            "/api/auth/"
-        )
+        pathname === "/manifest.webmanifest" ||
+        pathname === "/sw.js" ||
+        pathname.startsWith("/api/auth/")
     ) {
         const payload =
             await getTokenPayload(
@@ -124,7 +129,8 @@ export async function proxy(
         pathname.startsWith(
             "/_next/"
         ) ||
-        pathname === "/favicon.ico"
+        pathname === "/favicon.ico" ||
+        pathname.startsWith("/icons/")
     ) {
         return NextResponse.next();
     }
@@ -175,19 +181,8 @@ export async function proxy(
      * ============================================================
      * HEAD VIEWING STUDENT PORTAL
      * ============================================================
-     *
-     * When HEAD has entered Student Viewing Mode:
-     *
-     *     HEAD_VIEW_AS=<studentId>
-     *
-     * We pass that value to the server through an internal
-     * request header.
-     *
-     * getSession() reads this header and gives Student Portal
-     * code a Student session context.
-     *
-     * The actual JWT is NEVER changed.
      */
+
     if (
         role === "HEAD" &&
         (
@@ -226,57 +221,48 @@ export async function proxy(
         }
     }
 
+    /*
+     * ============================================================
+     * HEAD VIEWING TEACHER PORTAL
+     * ============================================================
+     */
 
-   /*
- * ============================================================
- * HEAD VIEWING TEACHER PORTAL
- * ============================================================
- *
- * HEAD remains authenticated as HEAD in the JWT.
- *
- * The teacher ID is stored in:
- *
- *     HEAD_VIEW_AS_TEACHER
- *
- * The proxy converts that cookie into an internal request
- * header.
- *
- * getSession() then exposes the teacher as the current
- * portal user.
- */
+    if (
+        role === "HEAD" &&
+        (
+            pathname === "/teacher" ||
+            pathname.startsWith(
+                "/teacher/"
+            ) ||
+            pathname === "/api/teacher" ||
+            pathname.startsWith(
+                "/api/teacher/"
+            )
+        )
+    ) {
+        const viewingTeacherId =
+            request.cookies.get(
+                HEAD_VIEW_AS_TEACHER_COOKIE
+            )?.value;
 
-if (
-    role === "HEAD" &&
-    (
-        pathname === "/teacher" ||
-        pathname.startsWith("/teacher/") ||
-        pathname === "/api/teacher" ||
-        pathname.startsWith("/api/teacher/")
-    )
-) {
-    const viewingTeacherId =
-        request.cookies.get(
-            HEAD_VIEW_AS_TEACHER_COOKIE
-        )?.value;
+        if (viewingTeacherId) {
+            const headers =
+                new Headers(
+                    request.headers
+                );
 
-    if (viewingTeacherId) {
-        const headers =
-            new Headers(
-                request.headers
+            headers.set(
+                "x-scolara-view-as-teacher",
+                viewingTeacherId
             );
 
-        headers.set(
-            "x-scolara-view-as-teacher",
-            viewingTeacherId
-        );
-
-        return NextResponse.next({
-            request: {
-                headers,
-            },
-        });
+            return NextResponse.next({
+                request: {
+                    headers,
+                },
+            });
+        }
     }
-}
 
     /*
      * ============================================================
@@ -447,6 +433,6 @@ if (
 
 export const config = {
     matcher: [
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+        "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
     ],
 };
