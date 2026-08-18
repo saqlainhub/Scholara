@@ -1,7 +1,11 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const nextConfig = {
+    logging: {
+        fetches: {
+            fullUrl: true,
+        },
+    },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

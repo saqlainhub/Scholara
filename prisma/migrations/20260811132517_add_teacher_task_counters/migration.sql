@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "checkedTasks" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "totalTasks" INTEGER NOT NULL DEFAULT 0;

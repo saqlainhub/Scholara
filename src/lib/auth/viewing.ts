@@ -1,0 +1,5 @@
+export const HEAD_VIEW_AS_COOKIE =
+    "HEAD_VIEW_AS";
+
+export const HEAD_VIEW_AS_TEACHER_COOKIE =
+    "HEAD_VIEW_AS_TEACHER";
