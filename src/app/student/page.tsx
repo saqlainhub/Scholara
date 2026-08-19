@@ -1250,21 +1250,8 @@ export default function StudentDashboardPage() {
 
                                                             <div className="relative min-w-0 px-4 py-4">
 
-                                                                {/* Mobile duration top-right */}
 
-                                                                <div className="absolute right-3 top-3 flex shrink-0 items-center gap-1.5 rounded-lg border border-(--border) bg-(--navy-800) px-2 py-1.5">
-                                                                    <span className="text-[7px] uppercase tracking-wider opacity-35">
-                                                                        Duration
-                                                                    </span>
-
-                                                                    <span className="font-mono text-[9px] font-semibold text-(--gold-500)">
-                                                                        {formatDuration(
-                                                                            routine.durationMin
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-
-                                                                <div className="min-w-0 pr-24">
+                                                                <div className="min-w-0">
 
                                                                     <div className="flex min-w-0 items-start gap-3">
 
