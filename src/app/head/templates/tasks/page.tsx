@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {
+    Copy,
     Eye,
     Pencil,
     Plus,
@@ -66,6 +67,11 @@ export default function TasksPage() {
     const [
         deletingId,
         setDeletingId,
+    ] = useState<string | null>(null);
+
+    const [
+        duplicatingId,
+        setDuplicatingId,
     ] = useState<string | null>(null);
 
     const [
@@ -155,7 +161,10 @@ export default function TasksPage() {
     function openDeleteModal(
         template: TaskTemplate
     ) {
-        if (deletingId) {
+        if (
+            deletingId ||
+            duplicatingId
+        ) {
             return;
         }
 
@@ -180,7 +189,11 @@ export default function TasksPage() {
     // ==========================================================
 
     async function handleDelete() {
-        if (!deleteTarget) {
+        if (
+            !deleteTarget ||
+            deletingId ||
+            duplicatingId
+        ) {
             return;
         }
 
@@ -236,6 +249,68 @@ export default function TasksPage() {
     }
 
     // ==========================================================
+    // DUPLICATE TEMPLATE
+    // ==========================================================
+
+    async function handleDuplicate(
+        template: TaskTemplate
+    ) {
+        if (
+            duplicatingId ||
+            deletingId
+        ) {
+            return;
+        }
+
+        try {
+            setDuplicatingId(template.id);
+            setError("");
+
+            const response =
+                await fetch(
+                    `/api/head/templates/tasks/${template.id}/duplicate`,
+                    {
+                        method: "POST",
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+                setError(
+                    data.message ||
+                    "Failed to duplicate task template."
+                );
+
+                return;
+            }
+
+            if (data.template) {
+                setTemplates(
+                    (currentTemplates) => [
+                        data.template,
+                        ...currentTemplates,
+                    ]
+                );
+            } else {
+                await loadTemplates();
+            }
+        } catch (error) {
+            console.error(
+                "DUPLICATE TASK TEMPLATE ERROR:",
+                error
+            );
+
+            setError(
+                "Something went wrong while duplicating the task template."
+            );
+        } finally {
+            setDuplicatingId(null);
+        }
+    }
+
+    // ==========================================================
     // RENDER
     // ==========================================================
 
@@ -254,7 +329,6 @@ export default function TasksPage() {
                 lg:py-8
             "
         >
-
             {/* =====================================================
                 PAGE HEADER
             ====================================================== */}
@@ -446,9 +520,7 @@ export default function TasksPage() {
                                     hover:text-black
                                 "
                             >
-                                <Plus
-                                    size={16}
-                                />
+                                <Plus size={16} />
 
                                 Create Template
                             </Link>
@@ -463,6 +535,10 @@ export default function TasksPage() {
                                     template
                                 );
 
+                            const isDuplicating =
+                                duplicatingId ===
+                                template.id;
+
                             return (
                                 <div
                                     key={
@@ -476,7 +552,7 @@ export default function TasksPage() {
                                         bg-(--navy-900)
                                     "
                                 >
-                                    {/* Card Content */}
+                                    {/* CARD CONTENT */}
 
                                     <div
                                         className="
@@ -550,16 +626,18 @@ export default function TasksPage() {
                                         </div>
                                     </div>
 
-                                    {/* Card Actions */}
+                                    {/* CARD ACTIONS */}
 
                                     <div
                                         className="
                                             grid
-                                            grid-cols-3
+                                            grid-cols-4
                                             border-t
                                             border-(--border)
                                         "
                                     >
+                                        {/* EDIT */}
+
                                         <Link
                                             href={`/head/templates/tasks/${template.id}/edit`}
                                             className="
@@ -567,10 +645,10 @@ export default function TasksPage() {
                                                 min-h-11
                                                 items-center
                                                 justify-center
-                                                gap-2
+                                                gap-1.5
                                                 border-r
                                                 border-(--border)
-                                                text-xs
+                                                text-[11px]
                                                 font-medium
                                                 opacity-65
                                                 transition
@@ -582,16 +660,16 @@ export default function TasksPage() {
                                             aria-label={`Edit ${template.name}`}
                                         >
                                             <Pencil
-                                                size={15}
-                                                strokeWidth={
-                                                    1.8
-                                                }
+                                                size={14}
+                                                strokeWidth={1.8}
                                             />
 
                                             <span>
                                                 Edit
                                             </span>
                                         </Link>
+
+                                        {/* VIEW */}
 
                                         <Link
                                             href={`/head/templates/tasks/${template.id}`}
@@ -600,10 +678,10 @@ export default function TasksPage() {
                                                 min-h-11
                                                 items-center
                                                 justify-center
-                                                gap-2
+                                                gap-1.5
                                                 border-r
                                                 border-(--border)
-                                                text-xs
+                                                text-[11px]
                                                 font-medium
                                                 opacity-65
                                                 transition
@@ -615,16 +693,65 @@ export default function TasksPage() {
                                             aria-label={`View ${template.name}`}
                                         >
                                             <Eye
-                                                size={16}
-                                                strokeWidth={
-                                                    1.8
-                                                }
+                                                size={15}
+                                                strokeWidth={1.8}
                                             />
 
                                             <span>
                                                 View
                                             </span>
                                         </Link>
+
+                                        {/* DUPLICATE */}
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleDuplicate(
+                                                    template
+                                                )
+                                            }
+                                            disabled={
+                                                deletingId !==
+                                                    null ||
+                                                duplicatingId !==
+                                                    null
+                                            }
+                                            className="
+                                                flex
+                                                min-h-11
+                                                items-center
+                                                justify-center
+                                                gap-1.5
+                                                border-r
+                                                border-(--border)
+                                                text-[11px]
+                                                font-medium
+                                                opacity-65
+                                                transition
+                                                hover:bg-(--navy-800)
+                                                hover:text-(--gold-500)
+                                                hover:opacity-100
+                                                active:bg-(--navy-800)
+                                                disabled:cursor-not-allowed
+                                                disabled:opacity-30
+                                            "
+                                            aria-label={`Duplicate ${template.name}`}
+                                            title="Duplicate"
+                                        >
+                                            <Copy
+                                                size={14}
+                                                strokeWidth={1.8}
+                                            />
+
+                                            <span>
+                                                {isDuplicating
+                                                    ? "Copying..."
+                                                    : "Duplicate"}
+                                            </span>
+                                        </button>
+
+                                        {/* DELETE */}
 
                                         <button
                                             type="button"
@@ -635,15 +762,17 @@ export default function TasksPage() {
                                             }
                                             disabled={
                                                 deletingId !==
-                                                null
+                                                    null ||
+                                                duplicatingId !==
+                                                    null
                                             }
                                             className="
                                                 flex
                                                 min-h-11
                                                 items-center
                                                 justify-center
-                                                gap-2
-                                                text-xs
+                                                gap-1.5
+                                                text-[11px]
                                                 font-medium
                                                 opacity-65
                                                 transition
@@ -657,10 +786,8 @@ export default function TasksPage() {
                                             aria-label={`Delete ${template.name}`}
                                         >
                                             <Trash2
-                                                size={15}
-                                                strokeWidth={
-                                                    1.8
-                                                }
+                                                size={14}
+                                                strokeWidth={1.8}
                                             />
 
                                             <span>
@@ -713,6 +840,10 @@ export default function TasksPage() {
                                     View
                                 </th>
 
+                                <th className="w-28 px-4 py-4 text-center font-medium">
+                                    Duplicate
+                                </th>
+
                                 <th className="w-24 px-4 py-4 text-center font-medium">
                                     Delete
                                 </th>
@@ -725,7 +856,7 @@ export default function TasksPage() {
                             {loading && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={5}
                                         className="
                                             px-6
                                             py-16
@@ -742,11 +873,10 @@ export default function TasksPage() {
                             {/* EMPTY */}
 
                             {!loading &&
-                                templates.length ===
-                                    0 && (
+                                templates.length === 0 && (
                                     <tr>
                                         <td
-                                            colSpan={6}
+                                            colSpan={5}
                                             className="
                                                 px-6
                                                 py-16
@@ -773,169 +903,218 @@ export default function TasksPage() {
                                 templates.map(
                                     (
                                         template
-                                    ) => (
-                                        <tr
-                                            key={
-                                                template.id
-                                            }
-                                            className="
-                                                border-b
-                                                border-(--border)
-                                                last:border-b-0
-                                                transition-colors
-                                                hover:bg-(--navy-800)
-                                            "
-                                        >
-                                            {/* Name */}
+                                    ) => {
+                                        const isDuplicating =
+                                            duplicatingId ===
+                                            template.id;
 
-                                            <td className="px-6 py-4">
-                                                <div className="min-w-0">
-                                                    <p className="truncate font-medium">
-                                                        {
-                                                            template.name
-                                                        }
-                                                    </p>
+                                        return (
+                                            <tr
+                                                key={
+                                                    template.id
+                                                }
+                                                className="
+                                                    border-b
+                                                    border-(--border)
+                                                    last:border-b-0
+                                                    transition-colors
+                                                    hover:bg-(--navy-800)
+                                                "
+                                            >
+                                                {/* NAME */}
 
-                                                    <p className="mt-1 text-xs opacity-40">
-                                                        {
-                                                            template
-                                                                .categories
-                                                                .length
-                                                        }{" "}
-                                                        {
-                                                            template
-                                                                .categories
-                                                                .length ===
-                                                            1
-                                                                ? "category"
-                                                                : "categories"
-                                                        }{" "}
-                                                        •{" "}
-                                                        {
-                                                            getTaskCount(
+                                                <td className="px-6 py-4">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-medium">
+                                                            {
+                                                                template.name
+                                                            }
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs opacity-40">
+                                                            {
+                                                                template
+                                                                    .categories
+                                                                    .length
+                                                            }{" "}
+                                                            {
+                                                                template
+                                                                    .categories
+                                                                    .length ===
+                                                                1
+                                                                    ? "category"
+                                                                    : "categories"
+                                                            }{" "}
+                                                            •{" "}
+                                                            {
+                                                                getTaskCount(
+                                                                    template
+                                                                )
+                                                            }{" "}
+                                                            {
+                                                                getTaskCount(
+                                                                    template
+                                                                ) ===
+                                                                1
+                                                                    ? "task"
+                                                                    : "tasks"
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </td>
+
+                                                {/* EDIT */}
+
+                                                <td className="px-4 py-4 text-center">
+                                                    <Link
+                                                        href={`/head/templates/tasks/${template.id}/edit`}
+                                                        className="
+                                                            mx-auto
+                                                            flex
+                                                            h-9
+                                                            w-9
+                                                            items-center
+                                                            justify-center
+                                                            rounded-lg
+                                                            opacity-50
+                                                            transition
+                                                            hover:bg-(--navy-800)
+                                                            hover:text-(--gold-500)
+                                                            hover:opacity-100
+                                                        "
+                                                        aria-label={`Edit ${template.name}`}
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil
+                                                            size={16}
+                                                            strokeWidth={1.8}
+                                                        />
+                                                    </Link>
+                                                </td>
+
+                                                {/* VIEW */}
+
+                                                <td className="px-4 py-4 text-center">
+                                                    <Link
+                                                        href={`/head/templates/tasks/${template.id}`}
+                                                        className="
+                                                            mx-auto
+                                                            flex
+                                                            h-9
+                                                            w-9
+                                                            items-center
+                                                            justify-center
+                                                            rounded-lg
+                                                            opacity-50
+                                                            transition
+                                                            hover:bg-(--navy-800)
+                                                            hover:text-(--gold-500)
+                                                            hover:opacity-100
+                                                        "
+                                                        aria-label={`View ${template.name}`}
+                                                        title="View"
+                                                    >
+                                                        <Eye
+                                                            size={17}
+                                                            strokeWidth={1.8}
+                                                        />
+                                                    </Link>
+                                                </td>
+
+                                                {/* DUPLICATE */}
+
+                                                <td className="px-4 py-4 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleDuplicate(
                                                                 template
                                                             )
-                                                        }{" "}
-                                                        {
-                                                            getTaskCount(
+                                                        }
+                                                        disabled={
+                                                            deletingId !==
+                                                                null ||
+                                                            duplicatingId !==
+                                                                null
+                                                        }
+                                                        className="
+                                                            mx-auto
+                                                            flex
+                                                            h-9
+                                                            min-w-9
+                                                            items-center
+                                                            justify-center
+                                                            gap-1.5
+                                                            rounded-lg
+                                                            px-2
+                                                            opacity-50
+                                                            transition
+                                                            hover:bg-(--navy-800)
+                                                            hover:text-(--gold-500)
+                                                            hover:opacity-100
+                                                            disabled:cursor-not-allowed
+                                                            disabled:opacity-30
+                                                        "
+                                                        aria-label={`Duplicate ${template.name}`}
+                                                        title="Duplicate"
+                                                    >
+                                                        <Copy
+                                                            size={16}
+                                                            strokeWidth={1.8}
+                                                        />
+
+                                                        {isDuplicating && (
+                                                            <span className="text-[10px]">
+                                                                Copying...
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                </td>
+
+                                                {/* DELETE */}
+
+                                                <td className="px-4 py-4 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openDeleteModal(
                                                                 template
-                                                            ) ===
-                                                            1
-                                                                ? "task"
-                                                                : "tasks"
+                                                            )
                                                         }
-                                                    </p>
-                                                </div>
-                                            </td>
-
-                                            {/* Edit */}
-
-                                            <td className="px-4 py-4 text-center">
-                                                <Link
-                                                    href={`/head/templates/tasks/${template.id}/edit`}
-                                                    className="
-                                                        mx-auto
-                                                        flex
-                                                        h-9
-                                                        w-9
-                                                        items-center
-                                                        justify-center
-                                                        rounded-lg
-                                                        opacity-50
-                                                        transition
-                                                        hover:bg-(--navy-800)
-                                                        hover:text-(--gold-500)
-                                                        hover:opacity-100
-                                                    "
-                                                    aria-label={`Edit ${template.name}`}
-                                                >
-                                                    <Pencil
-                                                        size={
-                                                            16
+                                                        disabled={
+                                                            deletingId !==
+                                                                null ||
+                                                            duplicatingId !==
+                                                                null
                                                         }
-                                                        strokeWidth={
-                                                            1.8
-                                                        }
-                                                    />
-                                                </Link>
-                                            </td>
-
-                                            {/* View */}
-
-                                            <td className="px-4 py-4 text-center">
-                                                <Link
-                                                    href={`/head/templates/tasks/${template.id}`}
-                                                    className="
-                                                        mx-auto
-                                                        flex
-                                                        h-9
-                                                        w-9
-                                                        items-center
-                                                        justify-center
-                                                        rounded-lg
-                                                        opacity-50
-                                                        transition
-                                                        hover:bg-(--navy-800)
-                                                        hover:text-(--gold-500)
-                                                        hover:opacity-100
-                                                    "
-                                                    aria-label={`View ${template.name}`}
-                                                >
-                                                    <Eye
-                                                        size={
-                                                            17
-                                                        }
-                                                        strokeWidth={
-                                                            1.8
-                                                        }
-                                                    />
-                                                </Link>
-                                            </td>
-
-                                            {/* Delete */}
-
-                                            <td className="px-4 py-4 text-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        openDeleteModal(
-                                                            template
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        deletingId !==
-                                                        null
-                                                    }
-                                                    className="
-                                                        mx-auto
-                                                        flex
-                                                        h-9
-                                                        w-9
-                                                        items-center
-                                                        justify-center
-                                                        rounded-lg
-                                                        opacity-50
-                                                        transition
-                                                        hover:bg-red-400/10
-                                                        hover:text-red-400
-                                                        hover:opacity-100
-                                                        disabled:cursor-not-allowed
-                                                        disabled:opacity-30
-                                                    "
-                                                    aria-label={`Delete ${template.name}`}
-                                                >
-                                                    <Trash2
-                                                        size={
-                                                            16
-                                                        }
-                                                        strokeWidth={
-                                                            1.8
-                                                        }
-                                                    />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    )
+                                                        className="
+                                                            mx-auto
+                                                            flex
+                                                            h-9
+                                                            w-9
+                                                            items-center
+                                                            justify-center
+                                                            rounded-lg
+                                                            opacity-50
+                                                            transition
+                                                            hover:bg-red-400/10
+                                                            hover:text-red-400
+                                                            hover:opacity-100
+                                                            disabled:cursor-not-allowed
+                                                            disabled:opacity-30
+                                                        "
+                                                        aria-label={`Delete ${template.name}`}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2
+                                                            size={16}
+                                                            strokeWidth={1.8}
+                                                        />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
                                 )}
                         </tbody>
                     </table>
@@ -981,10 +1160,9 @@ export default function TasksPage() {
                             border-(--border)
                             bg-(--navy-900)
                             shadow-2xl
-                            sm:rounded-2xl
                         "
                     >
-                        {/* Modal Header */}
+                        {/* MODAL HEADER */}
 
                         <div
                             className="
@@ -1043,8 +1221,7 @@ export default function TasksPage() {
                                     closeDeleteModal
                                 }
                                 disabled={
-                                    deletingId !==
-                                    null
+                                    deletingId !== null
                                 }
                                 className="
                                     flex
@@ -1066,7 +1243,7 @@ export default function TasksPage() {
                             </button>
                         </div>
 
-                        {/* Modal Body */}
+                        {/* MODAL BODY */}
 
                         <div
                             className="
@@ -1094,7 +1271,7 @@ export default function TasksPage() {
                             </p>
                         </div>
 
-                        {/* Modal Actions */}
+                        {/* MODAL ACTIONS */}
 
                         <div
                             className="
@@ -1117,8 +1294,7 @@ export default function TasksPage() {
                                     closeDeleteModal
                                 }
                                 disabled={
-                                    deletingId !==
-                                    null
+                                    deletingId !== null
                                 }
                                 className="
                                     min-h-11
@@ -1146,8 +1322,7 @@ export default function TasksPage() {
                                     handleDelete
                                 }
                                 disabled={
-                                    deletingId !==
-                                    null
+                                    deletingId !== null
                                 }
                                 className="
                                     inline-flex

@@ -20,7 +20,10 @@ function convertToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
-function calculateDuration(startTime: string, endTime: string) {
+function calculateDuration(
+  startTime: string,
+  endTime: string
+) {
   const start = convertToMinutes(startTime);
   const end = convertToMinutes(endTime);
 
@@ -39,18 +42,19 @@ function calculateDuration(startTime: string, endTime: string) {
 
 export async function GET() {
   try {
-    const templates = await prisma.routineTemplate.findMany({
-      include: {
-        items: {
-          orderBy: {
-            sortOrder: "asc",
+    const templates =
+      await prisma.routineTemplate.findMany({
+        include: {
+          items: {
+            orderBy: {
+              sortOrder: "asc",
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     return NextResponse.json(
       {
@@ -61,11 +65,15 @@ export async function GET() {
       }
     );
   } catch (error) {
-    console.error("GET ROUTINE TEMPLATES ERROR:", error);
+    console.error(
+      "GET ROUTINE TEMPLATES ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
-        message: "Failed to load routine templates.",
+        message:
+          "Failed to load routine templates.",
       },
       {
         status: 500,
@@ -75,12 +83,222 @@ export async function GET() {
 }
 
 // ============================================================
-// CREATE ROUTINE TEMPLATE
+// CREATE / DUPLICATE ROUTINE TEMPLATE
 // ============================================================
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // ========================================================
+    // TEMPORARY DEVELOPMENT USER
+    // ========================================================
+
+    const headUser =
+      await prisma.user.findFirst({
+        where: {
+          role: "HEAD",
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+    if (!headUser) {
+      return NextResponse.json(
+        {
+          message:
+            "No HEAD user exists in the database. Create a HEAD user first.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // ========================================================
+    // DUPLICATE EXISTING TEMPLATE
+    // ========================================================
+
+    if (
+      typeof body.duplicateId === "string" &&
+      body.duplicateId.trim()
+    ) {
+      const duplicateId =
+        body.duplicateId.trim();
+
+      // ------------------------------------------------------
+      // Find original template with all routines
+      // ------------------------------------------------------
+
+      const originalTemplate =
+        await prisma.routineTemplate.findUnique({
+          where: {
+            id: duplicateId,
+          },
+          include: {
+            items: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
+          },
+        });
+
+      if (!originalTemplate) {
+        return NextResponse.json(
+          {
+            message:
+              "Routine template to duplicate was not found.",
+          },
+          {
+            status: 404,
+          }
+        );
+      }
+
+      // ------------------------------------------------------
+      // Get base name
+      //
+      // Example:
+      // "Morning Routine"     -> "Morning Routine"
+      // "Morning Routine (2)" -> "Morning Routine"
+      // "Morning Routine (3)" -> "Morning Routine"
+      // ------------------------------------------------------
+
+      const baseName =
+        originalTemplate.name.replace(
+          /\s\(\d+\)$/,
+          ""
+        );
+
+      // ------------------------------------------------------
+      // Find existing templates with the same base name
+      // ------------------------------------------------------
+
+      const existingTemplates =
+        await prisma.routineTemplate.findMany({
+          where: {
+            name: {
+              startsWith: baseName,
+            },
+          },
+          select: {
+            name: true,
+          },
+        });
+
+      // ------------------------------------------------------
+      // Collect existing duplicate numbers
+      // ------------------------------------------------------
+
+      const usedNumbers = new Set<number>();
+
+      const escapedBaseName =
+        baseName.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        );
+
+      const duplicatePattern =
+        new RegExp(
+          `^${escapedBaseName} \\((\\d+)\\)$`
+        );
+
+      for (const template of existingTemplates) {
+        const match =
+          template.name.match(
+            duplicatePattern
+          );
+
+        if (!match) {
+          continue;
+        }
+
+        const number = Number(match[1]);
+
+        if (
+          Number.isInteger(number) &&
+          number >= 2
+        ) {
+          usedNumbers.add(number);
+        }
+      }
+
+      // ------------------------------------------------------
+      // Find next available number
+      // ------------------------------------------------------
+
+      let duplicateNumber = 2;
+
+      while (
+        usedNumbers.has(duplicateNumber)
+      ) {
+        duplicateNumber++;
+      }
+
+      const duplicateName =
+        `${baseName} (${duplicateNumber})`;
+
+      // ------------------------------------------------------
+      // Create duplicated template
+      // ------------------------------------------------------
+
+      const duplicatedTemplate =
+        await prisma.routineTemplate.create({
+          data: {
+            name: duplicateName,
+
+            // Keep the same creator as the original template.
+            createdById:
+              originalTemplate.createdById,
+
+            // Copy every routine item.
+            items: {
+              create:
+                originalTemplate.items.map(
+                  (item) => ({
+                    title: item.title,
+                    description:
+                      item.description,
+                    startTime:
+                      item.startTime,
+                    endTime:
+                      item.endTime,
+                    durationMin:
+                      item.durationMin,
+                    sortOrder:
+                      item.sortOrder,
+                  })
+                ),
+            },
+          },
+
+          include: {
+            items: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
+          },
+        });
+
+      return NextResponse.json(
+        {
+          message:
+            "Routine template duplicated successfully.",
+          template:
+            duplicatedTemplate,
+        },
+        {
+          status: 201,
+        }
+      );
+    }
+
+    // ========================================================
+    // CREATE NEW ROUTINE TEMPLATE
+    // ========================================================
 
     const name =
       typeof body.name === "string"
@@ -98,7 +316,8 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json(
         {
-          message: "Template name is required.",
+          message:
+            "Template name is required.",
         },
         {
           status: 400,
@@ -134,9 +353,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const cleanItems: RoutineItemInput[] = [];
+    const cleanItems: RoutineItemInput[] =
+      [];
 
-    for (let index = 0; index < items.length; index++) {
+    for (
+      let index = 0;
+      index < items.length;
+      index++
+    ) {
       const item = items[index];
 
       const title =
@@ -226,10 +450,11 @@ export async function POST(request: Request) {
       // Calculate duration on server
       // -------------------------------------------------------
 
-      const durationMin = calculateDuration(
-        startTime,
-        endTime
-      );
+      const durationMin =
+        calculateDuration(
+          startTime,
+          endTime
+        );
 
       if (durationMin <= 0) {
         return NextResponse.json(
@@ -253,34 +478,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // ---------------------------------------------------------
-    // TEMPORARY DEVELOPMENT USER
-    // ---------------------------------------------------------
-
-    const headUser = await prisma.user.findFirst({
-      where: {
-        role: "HEAD",
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
-
-    if (!headUser) {
-      return NextResponse.json(
-        {
-          message:
-            "No HEAD user exists in the database. Create a HEAD user first.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ---------------------------------------------------------
+    // ========================================================
     // CREATE TEMPLATE
-    // ---------------------------------------------------------
+    // ========================================================
 
     const template =
       await prisma.routineTemplate.create({
@@ -289,15 +489,21 @@ export async function POST(request: Request) {
           createdById: headUser.id,
 
           items: {
-            create: cleanItems.map((item) => ({
-              title: item.title,
-              description:
-                item.description || null,
-              startTime: item.startTime,
-              endTime: item.endTime,
-              durationMin: item.durationMin,
-              sortOrder: item.sortOrder,
-            })),
+            create: cleanItems.map(
+              (item) => ({
+                title: item.title,
+                description:
+                  item.description || null,
+                startTime:
+                  item.startTime,
+                endTime:
+                  item.endTime,
+                durationMin:
+                  item.durationMin,
+                sortOrder:
+                  item.sortOrder,
+              })
+            ),
           },
         },
 
@@ -322,7 +528,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error(
-      "CREATE ROUTINE TEMPLATE ERROR:",
+      "CREATE/DUPLICATE ROUTINE TEMPLATE ERROR:",
       error
     );
 

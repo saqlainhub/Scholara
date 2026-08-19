@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Eye,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 type RoutineItem = {
@@ -28,6 +34,7 @@ export default function RoutinesPage() {
   const [error, setError] = useState("");
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const [selectedTemplate, setSelectedTemplate] =
     useState<RoutineTemplate | null>(null);
@@ -81,6 +88,71 @@ export default function RoutinesPage() {
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  // ==========================================================
+  // DUPLICATE TEMPLATE
+  // ==========================================================
+
+  async function duplicateTemplate(
+    template: RoutineTemplate
+  ) {
+    if (duplicatingId || deletingId) {
+      return;
+    }
+
+    try {
+      setDuplicatingId(template.id);
+      setError("");
+
+      const response = await fetch(
+        "/api/head/templates/routines",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            duplicateId: template.id,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.message ||
+            "Failed to duplicate routine template."
+        );
+
+        return;
+      }
+
+      if (data.template) {
+        setTemplates((current) => [
+          data.template,
+          ...current,
+        ]);
+      } else {
+        await loadTemplates();
+      }
+    } catch (error) {
+      console.error(
+        "DUPLICATE ROUTINE TEMPLATE ERROR:",
+        error
+      );
+
+      setError(
+        "Something went wrong while duplicating the template."
+      );
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
+
+  // ==========================================================
+  // DELETE
+  // ==========================================================
 
   function openDeleteConfirm(
     template: RoutineTemplate
@@ -384,7 +456,7 @@ export default function RoutinesPage() {
                 className="
                   mt-4
                   grid
-                  grid-cols-3
+                  grid-cols-4
                   gap-2
                   border-t
                   border-(--border)
@@ -453,12 +525,57 @@ export default function RoutinesPage() {
                   <span>View</span>
                 </Link>
 
+                {/* DUPLICATE */}
+
+                <button
+                  type="button"
+                  disabled={
+                    duplicatingId !== null ||
+                    deletingId !== null
+                  }
+                  onClick={() =>
+                    duplicateTemplate(template)
+                  }
+                  className="
+                    flex
+                    min-h-10
+                    items-center
+                    justify-center
+                    gap-1.5
+                    rounded-xl
+                    bg-(--navy-800)
+                    text-xs
+                    opacity-70
+                    transition
+                    hover:bg-(--gold-500)/10
+                    hover:text-(--gold-400)
+                    hover:opacity-100
+                    active:scale-[0.97]
+                    disabled:cursor-not-allowed
+                    disabled:opacity-30
+                  "
+                  aria-label={`Duplicate ${template.name}`}
+                  title="Duplicate"
+                >
+                  <Copy
+                    size={15}
+                    strokeWidth={1.8}
+                  />
+
+                  <span>
+                    {duplicatingId === template.id
+                      ? "Copying..."
+                      : "Duplicate"}
+                  </span>
+                </button>
+
                 {/* DELETE */}
 
                 <button
                   type="button"
                   disabled={
-                    deletingId === template.id
+                    deletingId === template.id ||
+                    duplicatingId !== null
                   }
                   onClick={() =>
                     openDeleteConfirm(template)
@@ -535,6 +652,10 @@ export default function RoutinesPage() {
                   View
                 </th>
 
+                <th className="w-28 px-4 py-4 text-center font-medium">
+                  Duplicate
+                </th>
+
                 <th className="w-24 px-4 py-4 text-center font-medium">
                   Delete
                 </th>
@@ -547,7 +668,7 @@ export default function RoutinesPage() {
               {loading && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-6 py-16 text-center"
                   >
                     <p className="text-sm opacity-50">
@@ -563,7 +684,7 @@ export default function RoutinesPage() {
                 templates.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-6 py-16 text-center"
                     >
                       <div className="space-y-2">
@@ -669,13 +790,60 @@ export default function RoutinesPage() {
                       </Link>
                     </td>
 
+                    {/* DUPLICATE */}
+
+                    <td className="px-4 py-4 text-center">
+                      <button
+                        type="button"
+                        disabled={
+                          duplicatingId !== null ||
+                          deletingId !== null
+                        }
+                        onClick={() =>
+                          duplicateTemplate(template)
+                        }
+                        className="
+                          mx-auto
+                          flex
+                          h-9
+                          min-w-9
+                          items-center
+                          justify-center
+                          gap-1.5
+                          rounded-lg
+                          px-2
+                          opacity-50
+                          transition
+                          hover:bg-(--gold-500)/10
+                          hover:text-(--gold-400)
+                          hover:opacity-100
+                          disabled:cursor-not-allowed
+                          disabled:opacity-30
+                        "
+                        aria-label={`Duplicate ${template.name}`}
+                        title="Duplicate"
+                      >
+                        <Copy
+                          size={16}
+                          strokeWidth={1.8}
+                        />
+
+                        {duplicatingId === template.id && (
+                          <span className="text-xs">
+                            Copying...
+                          </span>
+                        )}
+                      </button>
+                    </td>
+
                     {/* DELETE */}
 
                     <td className="px-4 py-4 text-center">
                       <button
                         type="button"
                         disabled={
-                          deletingId === template.id
+                          deletingId === template.id ||
+                          duplicatingId !== null
                         }
                         onClick={() =>
                           openDeleteConfirm(template)
@@ -733,8 +901,7 @@ export default function RoutinesPage() {
           "
           onMouseDown={(event) => {
             if (
-              event.target ===
-              event.currentTarget
+              event.target === event.currentTarget
             ) {
               closeDeleteConfirm();
             }
