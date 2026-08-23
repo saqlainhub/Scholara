@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
-export type LeaderboardPeriod = "overall" | "daily" | "weekly" | "monthly";
+export type LeaderboardPeriod =
+    | "overall"
+    | "daily"
+    | "weekly"
+    | "monthly";
 
 export interface LeaderboardStudent {
     id: string;
@@ -31,28 +35,56 @@ function startOfUtcDay(date: Date): Date {
     );
 }
 
-function addUtcDays(date: Date, days: number): Date {
+function addUtcDays(
+    date: Date,
+    days: number,
+): Date {
     const result = new Date(date);
-    result.setUTCDate(result.getUTCDate() + days);
+
+    result.setUTCDate(
+        result.getUTCDate() + days,
+    );
+
     return result;
 }
 
-function startOfPreviousWeek(today: Date): Date {
+function startOfPreviousWeek(
+    today: Date,
+): Date {
     const currentDay = today.getUTCDay();
-    const daysSinceMonday = currentDay === 0 ? 6 : currentDay - 1;
 
-    const currentMonday = addUtcDays(today, -daysSinceMonday);
+    const daysSinceMonday =
+        currentDay === 0
+            ? 6
+            : currentDay - 1;
 
-    return addUtcDays(currentMonday, -7);
+    const currentMonday =
+        addUtcDays(
+            today,
+            -daysSinceMonday,
+        );
+
+    return addUtcDays(
+        currentMonday,
+        -7,
+    );
 }
 
-function endOfPreviousWeek(today: Date): Date {
-    const previousMonday = startOfPreviousWeek(today);
+function endOfPreviousWeek(
+    today: Date,
+): Date {
+    const previousMonday =
+        startOfPreviousWeek(today);
 
-    return addUtcDays(previousMonday, 7);
+    return addUtcDays(
+        previousMonday,
+        7,
+    );
 }
 
-function startOfPreviousMonth(today: Date): Date {
+function startOfPreviousMonth(
+    today: Date,
+): Date {
     return new Date(
         Date.UTC(
             today.getUTCFullYear(),
@@ -62,7 +94,9 @@ function startOfPreviousMonth(today: Date): Date {
     );
 }
 
-function endOfPreviousMonth(today: Date): Date {
+function endOfPreviousMonth(
+    today: Date,
+): Date {
     return new Date(
         Date.UTC(
             today.getUTCFullYear(),
@@ -72,13 +106,18 @@ function endOfPreviousMonth(today: Date): Date {
     );
 }
 
-function formatDate(date: Date): string {
-    return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        timeZone: "UTC",
-    }).format(date);
+function formatDate(
+    date: Date,
+): string {
+    return new Intl.DateTimeFormat(
+        "en-US",
+        {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            timeZone: "UTC",
+        },
+    ).format(date);
 }
 
 function getPeriodRange(
@@ -89,41 +128,60 @@ function getPeriodRange(
     title: string;
     subtitle: string;
 } {
-    const today = startOfUtcDay(new Date());
+    const today =
+        startOfUtcDay(new Date());
 
     if (period === "daily") {
-        const startDate = addUtcDays(today, -1);
+        const startDate =
+            addUtcDays(today, -1);
+
         const endDate = today;
 
         return {
             startDate,
             endDate,
             title: "Daily Leaderboard",
-            subtitle: `Results for ${formatDate(startDate)}`,
+            subtitle: `Results for ${formatDate(
+                startDate,
+            )}`,
         };
     }
 
     if (period === "weekly") {
-        const startDate = startOfPreviousWeek(today);
-        const endDate = endOfPreviousWeek(today);
+        const startDate =
+            startOfPreviousWeek(today);
+
+        const endDate =
+            endOfPreviousWeek(today);
 
         return {
             startDate,
             endDate,
             title: "Weekly Leaderboard",
-            subtitle: `${formatDate(startDate)} – ${formatDate(addUtcDays(endDate, -1))}`,
+            subtitle: `${formatDate(
+                startDate,
+            )} – ${formatDate(
+                addUtcDays(endDate, -1),
+            )}`,
         };
     }
 
     if (period === "monthly") {
-        const startDate = startOfPreviousMonth(today);
-        const endDate = endOfPreviousMonth(today);
+        const startDate =
+            startOfPreviousMonth(today);
+
+        const endDate =
+            endOfPreviousMonth(today);
 
         return {
             startDate,
             endDate,
             title: "Monthly Leaderboard",
-            subtitle: `${formatDate(startDate)} – ${formatDate(addUtcDays(endDate, -1))}`,
+            subtitle: `${formatDate(
+                startDate,
+            )} – ${formatDate(
+                addUtcDays(endDate, -1),
+            )}`,
         };
     }
 
@@ -131,7 +189,9 @@ function getPeriodRange(
         startDate: new Date(0),
         endDate: today,
         title: "Overall Leaderboard",
-        subtitle: `All-time results through ${formatDate(addUtcDays(today, -1))}`,
+        subtitle: `All-time results through ${formatDate(
+            addUtcDays(today, -1),
+        )}`,
     };
 }
 
@@ -145,70 +205,131 @@ export async function getLeaderboard(
         subtitle,
     } = getPeriodRange(period);
 
-    const students = await prisma.user.findMany({
-        where: {
-            role: "STUDENT",
-            isActive: true,
-        },
-        select: {
-            id: true,
-            name: true,
-            username: true,
-            profileImg: true,
-            dailyRecords: {
-                where: {
-                    date: {
-                        gte: startDate,
-                        lt: endDate,
+    const students =
+        await prisma.user.findMany({
+            where: {
+                role: "STUDENT",
+                isActive: true,
+            },
+
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                profileImg: true,
+
+                dailyRecords: {
+                    where: {
+                        date: {
+                            gte: startDate,
+                            lt: endDate,
+                        },
                     },
-                },
-                select: {
-                    tasks: {
-                        select: {
-                            score: true,
+
+                    select: {
+                        tasks: {
+                            select: {
+                                score: true,
+                            },
                         },
                     },
                 },
             },
-        },
-    });
+        });
 
-    const leaderboard = students
-        .map((student) => {
-            const score = student.dailyRecords.reduce(
-                (total, record) => {
-                    return (
-                        total +
-                        record.tasks.reduce(
-                            (recordTotal, task) =>
-                                recordTotal + (task.score ?? 0),
-                            0,
-                        )
+    const leaderboard =
+        students
+            .map((student) => {
+                const score =
+                    student.dailyRecords.reduce(
+                        (
+                            total,
+                            record,
+                        ) => {
+                            return (
+                                total +
+                                record.tasks.reduce(
+                                    (
+                                        recordTotal,
+                                        task,
+                                    ) =>
+                                        recordTotal +
+                                        (task.score ??
+                                            0),
+                                    0,
+                                )
+                            );
+                        },
+                        0,
                     );
-                },
-                0,
+
+                return {
+                    id: student.id,
+                    name: student.name,
+                    username:
+                        student.username,
+                    profileImg:
+                        student.profileImg,
+                    score,
+                    position: 0,
+                };
+            })
+            .sort((a, b) => {
+                if (
+                    b.score !==
+                    a.score
+                ) {
+                    return (
+                        b.score -
+                        a.score
+                    );
+                }
+
+                return a.name.localeCompare(
+                    b.name,
+                );
+            })
+            .map(
+                (
+                    student,
+                    index,
+                ) => ({
+                    ...student,
+                    position:
+                        index + 1,
+                }),
             );
 
-            return {
-                id: student.id,
-                name: student.name,
-                username: student.username,
-                profileImg: student.profileImg,
-                score,
-                position: 0,
-            };
-        })
-        .sort((a, b) => {
-            if (b.score !== a.score) {
-                return b.score - a.score;
-            }
+    // ==========================================================
+    // WINNER
+    // ==========================================================
+    //
+    // If the highest score is 0, nobody has actually scored.
+    // Therefore there is NO winner and the winner banner
+    // should not be displayed.
+    //
+    // Example:
+    //
+    // Ali   = 0
+    // Ahmed = 0
+    // Usman = 0
+    //
+    // winner = null
+    //
+    // But:
+    //
+    // Ali   = 0
+    // Ahmed = 10
+    // Usman = 5
+    //
+    // winner = Ahmed
+    // ==========================================================
 
-            return a.name.localeCompare(b.name);
-        })
-        .map((student, index) => ({
-            ...student,
-            position: index + 1,
-        }));
+    const winner =
+        leaderboard.length > 0 &&
+        leaderboard[0].score > 0
+            ? leaderboard[0]
+            : null;
 
     return {
         period,
@@ -216,7 +337,7 @@ export async function getLeaderboard(
         subtitle,
         startDate,
         endDate,
-        winner: leaderboard[0] ?? null,
+        winner,
         students: leaderboard,
     };
 }

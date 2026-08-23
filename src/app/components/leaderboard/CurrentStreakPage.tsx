@@ -17,7 +17,13 @@ export default async function CurrentStreakPage({
   const students =
     await getCurrentStreakLeaderboard();
 
-  const winner = students[0] ?? null;
+  
+
+  const winner =
+    students.length > 0 &&
+    students[0].currentStreak > 0
+      ? students[0]
+      : null;
 
   return (
     <main className="min-h-screen bg-[var(--navy-950)]">
@@ -37,7 +43,9 @@ export default async function CurrentStreakPage({
         </header>
 
         <div className="space-y-4 sm:space-y-6">
+ 
           <StreakBanner student={winner} />
+
 
           <CurrentStreakTable students={students} />
         </div>

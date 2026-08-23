@@ -7,13 +7,17 @@ import { getSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+// ==========================================================
+// GET — PREVIEW STUDENT UPLOADED PDF
+// ==========================================================
+
 export async function GET(
     request: NextRequest
 ) {
     try {
-        // =====================================================
-        // AUTH
-        // =====================================================
+        // ======================================================
+        // AUTHENTICATION
+        // ======================================================
 
         const session =
             await getSession();
@@ -30,14 +34,36 @@ export async function GET(
             );
         }
 
+        // ======================================================
+        // AUTHORIZATION
+        //
+        // PDF previews can be viewed by:
+        //
+        // STUDENT
+        // TEACHER
+        // HEAD
+        //
+        // The previous version allowed STUDENT only,
+        // which caused 403 errors when a teacher/head
+        // opened the same PDF.
+        // ======================================================
+
+        const allowedRoles = [
+            "STUDENT",
+            "TEACHER",
+            "HEAD",
+        ] as const;
+
         if (
-            session.role !==
-            "STUDENT"
+            !allowedRoles.includes(
+                session.role as
+                    (typeof allowedRoles)[number]
+            )
         ) {
             return NextResponse.json(
                 {
                     message:
-                        "Student access required.",
+                        "You are not authorized to preview this PDF.",
                 },
                 {
                     status: 403,
@@ -45,9 +71,9 @@ export async function GET(
             );
         }
 
-        // =====================================================
+        // ======================================================
         // GET CLOUDINARY URL
-        // =====================================================
+        // ======================================================
 
         const url =
             request.nextUrl.searchParams.get(
@@ -66,10 +92,9 @@ export async function GET(
             );
         }
 
-        // =====================================================
-        // SECURITY
-        // Only allow Cloudinary URLs
-        // =====================================================
+        // ======================================================
+        // VALIDATE URL
+        // ======================================================
 
         let parsedUrl: URL;
 
@@ -87,21 +112,28 @@ export async function GET(
             );
         }
 
+        // ======================================================
+        // CLOUDINARY HOST SECURITY
+        // ======================================================
+
+        const hostname =
+            parsedUrl.hostname.toLowerCase();
+
         const allowedHosts = [
             "res.cloudinary.com",
             "cloudinary.com",
         ];
 
-        if (
-            !allowedHosts.some(
+        const isAllowedHost =
+            allowedHosts.some(
                 (host) =>
-                    parsedUrl.hostname ===
-                        host ||
-                    parsedUrl.hostname.endsWith(
+                    hostname === host ||
+                    hostname.endsWith(
                         `.${host}`
                     )
-            )
-        ) {
+            );
+
+        if (!isAllowedHost) {
             return NextResponse.json(
                 {
                     message:
@@ -113,38 +145,77 @@ export async function GET(
             );
         }
 
-        // =====================================================
+        // ======================================================
+        // ONLY ALLOW HTTPS
+        // ======================================================
+
+        if (
+            parsedUrl.protocol !==
+            "https:"
+        ) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Only HTTPS PDF sources are allowed.",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+        // ======================================================
         // FETCH PDF FROM CLOUDINARY
-        // =====================================================
+        // ======================================================
 
         const response =
-            await fetch(url, {
-                cache: "no-store",
-            });
+            await fetch(
+                parsedUrl.toString(),
+                {
+                    cache: "no-store",
+                }
+            );
 
         if (!response.ok) {
+            console.error(
+                "CLOUDINARY PDF FETCH ERROR:",
+                {
+                    status:
+                        response.status,
+                    statusText:
+                        response.statusText,
+                    url:
+                        parsedUrl.toString(),
+                }
+            );
+
             return NextResponse.json(
                 {
                     message:
                         "Failed to fetch PDF.",
                 },
                 {
-                    status: response.status,
+                    status:
+                        response.status >=
+                            400 &&
+                        response.status <=
+                            599
+                            ? response.status
+                            : 502,
                 }
             );
         }
 
-        const contentType =
-            response.headers.get(
-                "content-type"
-            ) || "application/pdf";
+        // ======================================================
+        // READ CONTENT
+        // ======================================================
 
         const arrayBuffer =
             await response.arrayBuffer();
 
-        // =====================================================
-        // RETURN PDF WITH INLINE DISPOSITION
-        // =====================================================
+        // ======================================================
+        // RETURN PDF
+        // ======================================================
 
         return new NextResponse(
             arrayBuffer,
@@ -153,20 +224,24 @@ export async function GET(
 
                 headers: {
                     "Content-Type":
-                        contentType.includes(
-                            "pdf"
-                        )
-                            ? "application/pdf"
-                            : "application/pdf",
+                        "application/pdf",
 
                     "Content-Disposition":
-                        "inline",
+                        'inline; filename="student-submission.pdf"',
+
+                    "Content-Length":
+                        String(
+                            arrayBuffer.byteLength
+                        ),
 
                     "Cache-Control":
                         "private, no-store, max-age=0",
 
                     "X-Content-Type-Options":
                         "nosniff",
+
+                    "Content-Security-Policy":
+                        "default-src 'none'; frame-ancestors 'self';",
                 },
             }
         );

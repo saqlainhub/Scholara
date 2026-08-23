@@ -19,15 +19,28 @@ type DayOfWeek =
     | "SATURDAY"
     | "SUNDAY";
 
+// ==========================================================
+// DATE HELPERS
+// ==========================================================
+
 function isValidDateString(
     value: string
-) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+): boolean {
+    if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+            value
+        )
+    ) {
         return false;
     }
 
-    const [year, month, day] =
-        value.split("-").map(Number);
+    const [
+        year,
+        month,
+        day,
+    ] = value
+        .split("-")
+        .map(Number);
 
     const date =
         new Date(
@@ -39,17 +52,25 @@ function isValidDateString(
         );
 
     return (
-        date.getUTCFullYear() === year &&
-        date.getUTCMonth() === month - 1 &&
-        date.getUTCDate() === day
+        date.getUTCFullYear() ===
+            year &&
+        date.getUTCMonth() ===
+            month - 1 &&
+        date.getUTCDate() ===
+            day
     );
 }
 
 function createPakistanDate(
     dateString: string
-) {
-    const [year, month, day] =
-        dateString.split("-").map(Number);
+): Date {
+    const [
+        year,
+        month,
+        day,
+    ] = dateString
+        .split("-")
+        .map(Number);
 
     return new Date(
         Date.UTC(
@@ -78,25 +99,33 @@ function getDayOfWeekFromDate(
         "SATURDAY",
     ];
 
-    return days[date.getUTCDay()];
+    return days[
+        date.getUTCDay()
+    ];
 }
 
 function createDeadline(
     date: string,
     time: string | null
-) {
+): Date | null {
     if (!time) {
         return null;
     }
 
-    const parts = time.split(":");
+    const parts =
+        time.split(":");
 
-    if (parts.length !== 2) {
+    if (
+        parts.length !== 2
+    ) {
         return null;
     }
 
-    const hours = Number(parts[0]);
-    const minutes = Number(parts[1]);
+    const hours =
+        Number(parts[0]);
+
+    const minutes =
+        Number(parts[1]);
 
     if (
         Number.isNaN(hours) ||
@@ -110,66 +139,51 @@ function createDeadline(
     }
 
     return new Date(
-        `${date}T${String(hours).padStart(
+        `${date}T${String(
+            hours
+        ).padStart(
             2,
             "0"
-        )}:${String(minutes).padStart(
+        )}:${String(
+            minutes
+        ).padStart(
             2,
             "0"
         )}:00+05:00`
     );
 }
 
+// ==========================================================
+// LOAD TASKS
+// ==========================================================
+
 async function loadTasks(
     studentId: string,
     dateString: string
 ) {
-    if (!isValidDateString(dateString)) {
+    if (
+        !isValidDateString(
+            dateString
+        )
+    ) {
         throw new Error(
             "Invalid date."
         );
     }
 
-    /*
-     * ============================================================
-     * DETERMINE THE WEEKDAY
-     * ============================================================
-     *
-     * The date string represents a Pakistan date.
-     * Therefore we can safely calculate the weekday from
-     * the UTC representation created above.
-     */
+    // ======================================================
+    // DETERMINE DAY
+    // ======================================================
+
     const dayOfWeek =
         getDayOfWeekFromDate(
             dateString
         );
 
-    /*
-     * ============================================================
-     * LOAD WEEKLY ASSIGNMENT
-     * ============================================================
-     *
-     * IMPORTANT:
-     *
-     * The weekly assignment itself determines whether this
-     * is a WORKING day.
-     *
-     * assignment exists
-     *     -> WORKING DAY
-     *
-     * assignment does not exist
-     *     -> OFF DAY
-     *
-     * We DO NOT use taskTemplate existence to determine this.
-     *
-     * Therefore:
-     *
-     * assignment exists + taskTemplate null
-     *     -> WORKING DAY WITH NO TASKS
-     *
-     * assignment exists + taskTemplate exists
-     *     -> WORKING DAY WITH TASKS
-     */
+    // ======================================================
+    // LOAD WEEKLY ASSIGNMENT
+    // ======================================================
+
     const assignment =
         await prisma.studentWeeklyTemplateAssignment.findFirst(
             {
@@ -183,6 +197,7 @@ async function loadTasks(
                         select: {
                             id: true,
                             name: true,
+
                             categories: {
                                 orderBy: {
                                     sortOrder:
@@ -217,58 +232,55 @@ async function loadTasks(
             }
         );
 
-    /*
-     * ============================================================
-     * OFF DAY
-     * ============================================================
-     *
-     * No weekly assignment means this weekday is explicitly
-     * not assigned to the student.
-     *
-     * This is NOT the same as "no tasks assigned".
-     */
+    // ======================================================
+    // OFF DAY
+    // ======================================================
+
     if (!assignment) {
         return {
             template: null,
             categories: [],
             isWorking: false,
-            dayType: "OFF" as const,
+            dayType:
+                "OFF" as const,
             dayOfWeek,
         };
     }
 
-    /*
-     * ============================================================
-     * WORKING DAY BUT NO TASK TEMPLATE
-     * ============================================================
-     *
-     * The student has a weekly assignment for this day,
-     * therefore it is a working day.
-     *
-     * However, the head has not assigned a task template.
-     */
-    if (!assignment.taskTemplate) {
+    // ======================================================
+    // WORKING DAY WITHOUT TASK TEMPLATE
+    // ======================================================
+
+    if (
+        !assignment.taskTemplate
+    ) {
         return {
             template: null,
             categories: [],
             isWorking: true,
-            dayType: "WORKING" as const,
+            dayType:
+                "WORKING" as const,
             dayOfWeek,
         };
     }
 
-    /*
-     * ============================================================
-     * WORKING DAY WITH TASKS
-     * ============================================================
-     */
+    // ======================================================
+    // DATE
+    // ======================================================
 
     const date =
         createPakistanDate(
             dateString
         );
 
-    let dailyRecord =
+    const currentTemplateId =
+        assignment.taskTemplate.id;
+
+    // ======================================================
+    // LOAD DAILY RECORD
+    // ======================================================
+
+    const existingDailyRecord =
         await prisma.dailyRecord.findUnique(
             {
                 where: {
@@ -280,33 +292,180 @@ async function loadTasks(
             }
         );
 
-    if (!dailyRecord) {
+    /*
+     * IMPORTANT:
+     *
+     * Explicitly type this variable.
+     *
+     * This fixes:
+     *
+     * "Variable 'dailyRecord' implicitly has an 'any' type."
+     *
+     * NonNullable removes the null possibility from
+     * existingDailyRecord.
+     */
+
+    let dailyRecord:
+        NonNullable<
+            typeof existingDailyRecord
+        >;
+
+    // ======================================================
+    // CREATE DAILY RECORD
+    // ======================================================
+
+    if (!existingDailyRecord) {
         dailyRecord =
-            await prisma.dailyRecord.create({
-                data: {
-                    studentId,
-                    date,
-                    isWorking: true,
-                },
-            });
-    } else if (!dailyRecord.isWorking) {
+            await prisma.dailyRecord.create(
+                {
+                    data: {
+                        studentId,
+                        date,
+                        isWorking: true,
+                        taskTemplateId:
+                            currentTemplateId,
+                    },
+                }
+            );
+    } else {
         dailyRecord =
-            await prisma.dailyRecord.update({
-                where: {
-                    id: dailyRecord.id,
-                },
-                data: {
-                    isWorking: true,
-                },
-            });
+            existingDailyRecord;
+
+        // ==================================================
+        // MAKE SURE WORKING STATUS IS CORRECT
+        // ==================================================
+
+        if (
+            !dailyRecord.isWorking
+        ) {
+            dailyRecord =
+                await prisma.dailyRecord.update(
+                    {
+                        where: {
+                            id:
+                                dailyRecord.id,
+                        },
+
+                        data: {
+                            isWorking:
+                                true,
+                        },
+                    }
+                );
+        }
     }
+
+    // ======================================================
+    // DETECT TEMPLATE CHANGE
+    // ======================================================
+
+    const previousTemplateId =
+        dailyRecord.taskTemplateId;
+
+    const templateChanged =
+        previousTemplateId !==
+        currentTemplateId;
+
+    // ======================================================
+    // REPLACE TASKS WHEN TEMPLATE CHANGES
+    // ======================================================
+
+    if (templateChanged) {
+        /*
+         * IMPORTANT:
+         *
+         * We delete the TASK records themselves.
+         *
+         * According to your Prisma schema:
+         *
+         * Task
+         *   ↓ Cascade
+         * TaskSubmission
+         *   ↓ Cascade
+         * TaskSubmissionMedia
+         *
+         * and:
+         *
+         * Task
+         *   ↓ Cascade
+         * TaskReview
+         *
+         * Therefore deleting the Task automatically removes:
+         *
+         * - submitted task
+         * - submission note
+         * - uploaded media
+         * - score/review
+         * - teacher review
+         * - checked state
+         * - completion state
+         */
+
+        await prisma.$transaction(
+            async (tx) => {
+                await tx.task.deleteMany(
+                    {
+                        where: {
+                            dailyRecordId:
+                                dailyRecord.id,
+
+                            studentId,
+                        },
+                    }
+                );
+
+                await tx.dailyRecord.update(
+                    {
+                        where: {
+                            id:
+                                dailyRecord.id,
+                        },
+
+                        data: {
+                            taskTemplateId:
+                                currentTemplateId,
+
+                            isWorking:
+                                true,
+                        },
+                    }
+                );
+            }
+        );
+
+        /*
+         * Reload the DailyRecord after the transaction.
+         *
+         * findUniqueOrThrow guarantees a non-null result.
+         */
+
+        dailyRecord =
+            await prisma.dailyRecord.findUniqueOrThrow(
+                {
+                    where: {
+                        id:
+                            dailyRecord.id,
+                    },
+                }
+            );
+    }
+
+    // ======================================================
+    // GENERATE TASKS
+    // ======================================================
 
     const categories = [];
 
     for (
         const templateCategory of
-        assignment.taskTemplate.categories
+        assignment
+            .taskTemplate
+            .categories
     ) {
+        // ==================================================
+        // FIND / CREATE CATEGORY
+        // ==================================================
+
         let category =
             await prisma.taskCategory.findFirst(
                 {
@@ -329,29 +488,13 @@ async function loadTasks(
                 );
         }
 
-        const tasks = [];
+        // ==================================================
+        // LOAD EXISTING TASKS
+        // ==================================================
 
-        for (
-            const templateTask of
-            templateCategory.tasks
-        ) {
-            /*
-             * IMPORTANT:
-             *
-             * Search only inside this exact DailyRecord.
-             *
-             * Therefore:
-             *
-             * Monday Task A
-             *
-             * and
-             *
-             * Tuesday Task A
-             *
-             * are two different Task records.
-             */
-            let task =
-                await prisma.task.findFirst({
+        const existingTasks =
+            await prisma.task.findMany(
+                {
                     where: {
                         dailyRecordId:
                             dailyRecord.id,
@@ -360,9 +503,6 @@ async function loadTasks(
 
                         categoryId:
                             category.id,
-
-                        title:
-                            templateTask.title,
                     },
 
                     orderBy: [
@@ -370,6 +510,7 @@ async function loadTasks(
                             createdAt:
                                 "desc",
                         },
+
                         {
                             id:
                                 "desc",
@@ -381,7 +522,8 @@ async function loadTasks(
                             select: {
                                 id: true,
                                 name: true,
-                                username: true,
+                                username:
+                                    true,
                             },
                         },
 
@@ -393,6 +535,7 @@ async function loadTasks(
                                     submittedAt:
                                         "desc",
                                 },
+
                                 {
                                     id:
                                         "desc",
@@ -402,7 +545,8 @@ async function loadTasks(
                             take: 1,
 
                             include: {
-                                media: true,
+                                media:
+                                    true,
                             },
                         },
 
@@ -412,120 +556,185 @@ async function loadTasks(
                                     select: {
                                         id: true,
                                         name: true,
-                                        username: true,
+                                        username:
+                                            true,
                                     },
                                 },
                             },
                         },
                     },
-                });
+                }
+            );
+
+        const tasks = [];
+
+        // ==================================================
+        // CREATE / REUSE TASKS
+        // ==================================================
+
+        for (
+            const templateTask of
+            templateCategory.tasks
+        ) {
+            /*
+             * IMPORTANT:
+             *
+             * If template did NOT change:
+             *
+             *     reuse existing task
+             *
+             * If template DID change:
+             *
+             *     old tasks were deleted above
+             *
+             *     therefore this creates completely
+             *     fresh tasks.
+             *
+             * We intentionally use title only for
+             * reusing tasks inside the same unchanged
+             * DailyRecord.
+             *
+             * Template changes are NEVER matched by
+             * title because all old tasks are deleted.
+             */
+
+            let task =
+                existingTasks.find(
+                    (
+                        existingTask
+                    ) =>
+                        existingTask.title ===
+                        templateTask.title
+                );
 
             if (!task) {
                 task =
-                    await prisma.task.create({
-                        data: {
-                            dailyRecordId:
-                                dailyRecord.id,
+                    await prisma.task.create(
+                        {
+                            data: {
+                                dailyRecordId:
+                                    dailyRecord.id,
 
-                            studentId,
+                                studentId,
 
-                            teacherId:
-                                templateTask.teacherId,
+                                teacherId:
+                                    templateTask.teacherId,
 
-                            categoryId:
-                                category.id,
+                                categoryId:
+                                    category.id,
 
-                            title:
-                                templateTask.title,
+                                title:
+                                    templateTask.title,
 
-                            description:
-                                templateTask.description,
+                                description:
+                                    templateTask.description,
 
-                            deadline:
-                                createDeadline(
-                                    dateString,
-                                    templateTask.deadline
-                                ),
+                                deadline:
+                                    createDeadline(
+                                        dateString,
+                                        templateTask.deadline
+                                    ),
 
-                            difficulty:
-                                templateTask.difficulty,
-                        },
-
-                        include: {
-                            teacher: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    username: true,
-                                },
+                                difficulty:
+                                    templateTask.difficulty,
                             },
 
-                            category: true,
-
-                            submissions: {
-                                orderBy: [
-                                    {
-                                        submittedAt:
-                                            "desc",
+                            include: {
+                                teacher: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        username:
+                                            true,
                                     },
-                                    {
-                                        id:
-                                            "desc",
-                                    },
-                                ],
-
-                                take: 1,
-
-                                include: {
-                                    media: true,
                                 },
-                            },
 
-                            review: {
-                                include: {
-                                    teacher: {
-                                        select: {
-                                            id: true,
-                                            name: true,
-                                            username: true,
+                                category: true,
+
+                                submissions: {
+                                    orderBy: [
+                                        {
+                                            submittedAt:
+                                                "desc",
+                                        },
+
+                                        {
+                                            id:
+                                                "desc",
+                                        },
+                                    ],
+
+                                    take: 1,
+
+                                    include: {
+                                        media:
+                                            true,
+                                    },
+                                },
+
+                                review: {
+                                    include: {
+                                        teacher: {
+                                            select: {
+                                                id: true,
+                                                name: true,
+                                                username:
+                                                    true,
+                                            },
                                         },
                                     },
                                 },
                             },
-                        },
-                    });
+                        }
+                    );
             }
 
             tasks.push(task);
         }
 
         categories.push({
-            id: category.id,
-            name: category.name,
+            id:
+                category.id,
+
+            name:
+                category.name,
+
             sortOrder:
                 templateCategory.sortOrder,
+
             tasks,
         });
     }
 
+    // ======================================================
+    // RETURN
+    // ======================================================
+
     return {
         template: {
             id:
-                assignment.taskTemplate.id,
+                assignment
+                    .taskTemplate.id,
 
             name:
-                assignment.taskTemplate.name,
+                assignment
+                    .taskTemplate.name,
         },
 
         categories,
 
         isWorking: true,
 
-        dayType: "WORKING" as const,
+        dayType:
+            "WORKING" as const,
 
         dayOfWeek,
     };
 }
+
+// ==========================================================
+// GET
+// ==========================================================
 
 export async function GET(
     request: NextRequest
@@ -533,6 +742,10 @@ export async function GET(
     try {
         const session =
             await getSession();
+
+        // ==================================================
+        // AUTH
+        // ==================================================
 
         if (!session) {
             return NextResponse.json(
@@ -546,8 +759,13 @@ export async function GET(
             );
         }
 
+        // ==================================================
+        // STUDENT ONLY
+        // ==================================================
+
         if (
-            session.role !== "STUDENT"
+            session.role !==
+            "STUDENT"
         ) {
             return NextResponse.json(
                 {
@@ -560,6 +778,10 @@ export async function GET(
             );
         }
 
+        // ==================================================
+        // REQUESTED DATE
+        // ==================================================
+
         const requestedDate =
             request.nextUrl.searchParams.get(
                 "date"
@@ -567,17 +789,25 @@ export async function GET(
 
         const dateString =
             requestedDate &&
-                isValidDateString(
-                    requestedDate
-                )
+            isValidDateString(
+                requestedDate
+            )
                 ? requestedDate
                 : getPakistanDate();
+
+        // ==================================================
+        // LOAD
+        // ==================================================
 
         const data =
             await loadTasks(
                 session.id,
                 dateString
             );
+
+        // ==================================================
+        // RESPONSE
+        // ==================================================
 
         return NextResponse.json({
             currentDay:

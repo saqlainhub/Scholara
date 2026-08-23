@@ -74,9 +74,12 @@ export async function proxy(
 
     if (
         pathname === "/login" ||
-        pathname === "/manifest.webmanifest" ||
+        pathname ===
+        "/manifest.webmanifest" ||
         pathname === "/sw.js" ||
-        pathname.startsWith("/api/auth/")
+        pathname.startsWith(
+            "/api/auth/"
+        )
     ) {
         const payload =
             await getTokenPayload(
@@ -91,7 +94,7 @@ export async function proxy(
                 request.nextUrl.clone();
 
             switch (
-                String(payload.role)
+            String(payload.role)
             ) {
                 case "HEAD":
                     url.pathname =
@@ -129,8 +132,11 @@ export async function proxy(
         pathname.startsWith(
             "/_next/"
         ) ||
-        pathname === "/favicon.ico" ||
-        pathname.startsWith("/icons/")
+        pathname ===
+        "/favicon.ico" ||
+        pathname.startsWith(
+            "/icons/"
+        )
     ) {
         return NextResponse.next();
     }
@@ -179,6 +185,43 @@ export async function proxy(
 
     /*
      * ============================================================
+     * PDF PREVIEW EXCEPTION
+     * ============================================================
+     *
+     * IMPORTANT:
+     *
+     * Student-uploaded PDF preview can be requested from:
+     *
+     * - Student portal
+     * - Teacher portal
+     * - Head portal
+     *
+     * The PDF route itself performs authentication and validates
+     * the Cloudinary URL.
+     *
+     * Therefore we must allow this specific endpoint to pass
+     * through the proxy before the normal /api/student,
+     * /api/teacher and /api/head authorization rules below.
+     *
+     * This does NOT open all student APIs to teachers/head.
+     * It only allows routes whose pathname ends with:
+     *
+     *     /pdf-preview
+     *
+     * ============================================================
+     */
+
+    const isPdfPreviewRoute =
+        pathname.endsWith(
+            "/pdf-preview"
+        );
+
+    if (isPdfPreviewRoute) {
+        return NextResponse.next();
+    }
+
+    /*
+     * ============================================================
      * HEAD VIEWING STUDENT PORTAL
      * ============================================================
      */
@@ -186,12 +229,13 @@ export async function proxy(
     if (
         role === "HEAD" &&
         (
-            pathname === "/student" ||
+            pathname ===
+            "/student" ||
             pathname.startsWith(
                 "/student/"
             ) ||
             pathname ===
-                "/api/student" ||
+            "/api/student" ||
             pathname.startsWith(
                 "/api/student/"
             )
@@ -230,11 +274,13 @@ export async function proxy(
     if (
         role === "HEAD" &&
         (
-            pathname === "/teacher" ||
+            pathname ===
+            "/teacher" ||
             pathname.startsWith(
                 "/teacher/"
             ) ||
-            pathname === "/api/teacher" ||
+            pathname ===
+            "/api/teacher" ||
             pathname.startsWith(
                 "/api/teacher/"
             )
@@ -329,7 +375,7 @@ export async function proxy(
                     "Forbidden.",
             },
             {
-                status: 403
+                status: 403,
             }
         );
     }
@@ -349,7 +395,8 @@ export async function proxy(
         const url =
             request.nextUrl.clone();
 
-        url.pathname = "/teacher";
+        url.pathname =
+            "/teacher";
 
         return NextResponse.redirect(
             url
@@ -371,7 +418,8 @@ export async function proxy(
         const url =
             request.nextUrl.clone();
 
-        url.pathname = "/teacher";
+        url.pathname =
+            "/teacher";
 
         return NextResponse.redirect(
             url
@@ -393,10 +441,8 @@ export async function proxy(
         const url =
             request.nextUrl.clone();
 
-        url.pathname =
-            `/student/${String(
-                payload.userId
-            )}`;
+        url.pathname = "/student";
+        url.search = "";
 
         return NextResponse.redirect(
             url
@@ -418,15 +464,15 @@ export async function proxy(
         const url =
             request.nextUrl.clone();
 
-        url.pathname =
-            `/student/${String(
-                payload.userId
-            )}`;
+        url.pathname = "/student";
+        url.search = "";
 
         return NextResponse.redirect(
             url
         );
     }
+
+
 
     return NextResponse.next();
 }

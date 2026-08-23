@@ -47,26 +47,32 @@ model User {
   weeklyAssignments       StudentWeeklyTemplateAssignment[]
   taskSubmissions         TaskSubmission[]
   taskReviews             TaskReview[]                      @relation("TeacherTaskReviews")
-  awardEvents StudentAwardEvent[]
+  awardEvents             StudentAwardEvent[]
 
   @@index([role])
   @@index([username])
 }
 
 model DailyRecord {
-  id        String   @id @default(cuid())
-  studentId String
-  date      DateTime @db.Date
-  isWorking Boolean  @default(true)
+  id             String   @id @default(cuid())
+  studentId      String
+  date           DateTime @db.Date
+  isWorking      Boolean  @default(true)
+  taskTemplateId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  taskTemplate TaskTemplate? @relation("DailyRecordTaskTemplate", fields: [taskTemplateId], references: [id], onDelete: SetNull)
+
+  tasks Task[]
 
   @@unique([studentId, date])
   @@index([studentId])
   @@index([date])
+  @@index([taskTemplateId])
 }
 
 model TaskCategory {
@@ -100,10 +106,13 @@ model Task {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  dailyRecord DailyRecord  @relation(fields: [dailyRecordId], references: [id], onDelete: Cascade)
-  student     User         @relation("StudentTasks", fields: [studentId], references: [id], onDelete: Cascade)
-  teacher     User         @relation("TeacherTasks", fields: [teacherId], references: [id], onDelete: Restrict)
-  category    TaskCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  dailyRecord DailyRecord @relation(fields: [dailyRecordId], references: [id],onDelete: Cascade)
+
+  student User @relation("StudentTasks",fields: [studentId],references: [id],onDelete: Cascade)
+
+  teacher User @relation("TeacherTasks",fields: [teacherId],references: [id],onDelete: Restrict)
+
+  category TaskCategory @relation(fields: [categoryId],references: [id],onDelete: Restrict)
 
   submissions TaskSubmission[]
   review      TaskReview?
@@ -125,9 +134,11 @@ model TaskSubmission {
   submittedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  task    Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  student User                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  media   TaskSubmissionMedia[]
+  task Task @relation(fields: [taskId],references: [id],onDelete: Cascade)
+
+  student User @relation(fields: [studentId],references: [id],onDelete: Cascade)
+
+  media TaskSubmissionMedia[]
 
   @@index([taskId])
   @@index([studentId])
@@ -145,7 +156,7 @@ model TaskSubmissionMedia {
   bytes        Int?
   createdAt    DateTime @default(now())
 
-  submission TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission TaskSubmission @relation(fields: [submissionId],references: [id],onDelete: Cascade)
 
   @@index([submissionId])
 }
@@ -159,32 +170,33 @@ model TaskReview {
   checkedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  teacher User @relation("TeacherTaskReviews", fields: [teacherId], references: [id], onDelete: Restrict)
+  task Task @relation(fields: [taskId],references: [id],onDelete: Cascade)
+
+  teacher User @relation("TeacherTaskReviews",fields: [teacherId],references: [id],onDelete: Restrict)
 
   @@index([teacherId])
 }
 
 model StudentAwardStats {
-  id                 String   @id @default(cuid())
-  studentId          String   @unique
-  dailyAwards        Int      @default(0)
-  weeklyAwards       Int      @default(0)
-  monthlyAwards      Int      @default(0)
-  streak3DaysAwards  Int      @default(0)
-  streak7DaysAwards  Int      @default(0)
-  streak14DaysAwards Int      @default(0)
-  streak30DaysAwards Int      @default(0)
-  streak60DaysAwards Int      @default(0)
-  streak90DaysAwards Int      @default(0)
-  overallAwardDays   Int      @default(0)
-  currentStreak      Int      @default(0)
-  longestStreak      Int      @default(0)
+  id                 String    @id @default(cuid())
+  studentId          String    @unique
+  dailyAwards        Int       @default(0)
+  weeklyAwards       Int       @default(0)
+  monthlyAwards      Int       @default(0)
+  streak3DaysAwards  Int       @default(0)
+  streak7DaysAwards  Int       @default(0)
+  streak14DaysAwards Int       @default(0)
+  streak30DaysAwards Int       @default(0)
+  streak60DaysAwards Int       @default(0)
+  streak90DaysAwards Int       @default(0)
+  overallAwardDays   Int       @default(0)
+  currentStreak      Int       @default(0)
+  longestStreak      Int       @default(0)
   lastStreakDate     DateTime? @db.Date
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student User @relation(fields: [studentId],references: [id],onDelete: Cascade)
 }
 
 model StudentAwardEvent {
@@ -194,7 +206,7 @@ model StudentAwardEvent {
   periodKey String
   createdAt DateTime @default(now())
 
-  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student User @relation(fields: [studentId],references: [id],onDelete: Cascade)
 
   @@unique([studentId, type, periodKey])
   @@index([studentId])
@@ -209,10 +221,14 @@ model TaskTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  createdBy         User                              @relation("CreatedTaskTemplates", fields: [createdById], references: [id], onDelete: Restrict)
-  categories        TaskTemplateCategory[]
-  items             TaskTemplateItem[]
+  createdBy User @relation("CreatedTaskTemplates",fields: [createdById],references: [id],onDelete: Restrict)
+
+  categories TaskTemplateCategory[]
+  items      TaskTemplateItem[]
+
   weeklyAssignments StudentWeeklyTemplateAssignment[]
+
+  dailyRecords DailyRecord[] @relation("DailyRecordTaskTemplate")
 
   @@index([createdById])
   @@index([name])
@@ -226,8 +242,9 @@ model TaskTemplateCategory {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  template TaskTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  tasks    TaskTemplateItem[]
+  template TaskTemplate @relation(fields: [templateId],references: [id],onDelete: Cascade)
+
+  tasks TaskTemplateItem[]
 
   @@index([templateId])
   @@index([sortOrder])
@@ -246,9 +263,11 @@ model TaskTemplateItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  template TaskTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  category TaskTemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  teacher  User                 @relation("TemplateTaskTeachers", fields: [teacherId], references: [id], onDelete: Restrict)
+  template TaskTemplate @relation(fields: [templateId],references: [id],onDelete: Cascade)
+
+  category TaskTemplateCategory @relation(fields: [categoryId],references: [id],onDelete: Cascade)
+
+  teacher User @relation("TemplateTaskTeachers",fields: [teacherId],references: [id],onDelete: Restrict)
 
   @@index([templateId])
   @@index([categoryId])
@@ -263,8 +282,10 @@ model RoutineTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  createdBy         User                              @relation("CreatedRoutineTemplates", fields: [createdById], references: [id], onDelete: Restrict)
-  items             RoutineTemplateItem[]
+  createdBy User @relation("CreatedRoutineTemplates",fields: [createdById],references: [id],onDelete: Restrict)
+
+  items RoutineTemplateItem[]
+
   weeklyAssignments StudentWeeklyTemplateAssignment[]
 
   @@index([createdById])
@@ -283,7 +304,7 @@ model RoutineTemplateItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  template RoutineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template RoutineTemplate @relation(fields: [templateId],references: [id],onDelete: Cascade)
 
   @@index([templateId])
   @@index([sortOrder])
@@ -298,9 +319,11 @@ model StudentWeeklyTemplateAssignment {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  student         User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  taskTemplate    TaskTemplate?    @relation(fields: [taskTemplateId], references: [id], onDelete: SetNull)
-  routineTemplate RoutineTemplate? @relation(fields: [routineTemplateId], references: [id], onDelete: SetNull)
+  student User @relation(fields: [studentId],references: [id],onDelete: Cascade)
+
+  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId],references: [id],onDelete: SetNull)
+
+  routineTemplate RoutineTemplate? @relation(fields: [routineTemplateId],references: [id],onDelete: SetNull)
 
   @@unique([studentId, dayOfWeek])
   @@index([studentId])

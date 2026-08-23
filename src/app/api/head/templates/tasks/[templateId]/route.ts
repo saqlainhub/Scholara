@@ -2,24 +2,24 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
-  params: Promise<{
-    templateId: string;
-  }>;
+    params: Promise<{
+        templateId: string;
+    }>;
 };
 
 type CleanedTask = {
-  title: string;
-  description: string | null;
-  deadline: string | null;
-  difficulty: number;
-  teacherId: string;
-  sortOrder: number;
+    title: string;
+    description: string | null;
+    deadline: string | null;
+    difficulty: number;
+    teacherId: string;
+    sortOrder: number;
 };
 
 type CleanedCategory = {
-  name: string;
-  sortOrder: number;
-  tasks: CleanedTask[];
+    name: string;
+    sortOrder: number;
+    tasks: CleanedTask[];
 };
 
 // ==========================================================
@@ -27,101 +27,104 @@ type CleanedCategory = {
 // ==========================================================
 
 export async function GET(
-  _request: Request,
-  { params }: RouteContext
+    _request: Request,
+    { params }: RouteContext
 ) {
-  try {
-    const { templateId } = await params;
+    try {
+        const { templateId } = await params;
 
-    console.log(
-      "GET TASK TEMPLATE ID:",
-      templateId
-    );
+        console.log(
+            "GET TASK TEMPLATE ID:",
+            templateId
+        );
 
-    if (!templateId) {
-      return NextResponse.json(
-        {
-          message:
-            "Template ID is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const template =
-      await prisma.taskTemplate.findUnique({
-        where: {
-          id: templateId,
-        },
-        include: {
-          categories: {
-            orderBy: {
-              sortOrder: "asc",
-            },
-            include: {
-              tasks: {
-                orderBy: {
-                  sortOrder: "asc",
+        if (!templateId) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Template ID is required.",
                 },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+        const template =
+            await prisma.taskTemplate.findUnique({
+                where: {
+                    id: templateId,
+                },
+
                 include: {
-                  teacher: {
-                    select: {
-                      id: true,
-                      name: true,
-                      username: true,
+                    categories: {
+                        orderBy: {
+                            sortOrder: "asc",
+                        },
+
+                        include: {
+                            tasks: {
+                                orderBy: {
+                                    sortOrder: "asc",
+                                },
+
+                                include: {
+                                    teacher: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                            username: true,
+                                        },
+                                    },
+                                },
+                            },
+                        },
                     },
-                  },
                 },
-              },
-            },
-          },
-        },
-      });
+            });
 
-    console.log(
-      "GET TASK TEMPLATE RESULT:",
-      template
-        ? {
-            id: template.id,
-            name: template.name,
-          }
-        : null
-    );
+        console.log(
+            "GET TASK TEMPLATE RESULT:",
+            template
+                ? {
+                    id: template.id,
+                    name: template.name,
+                }
+                : null
+        );
 
-    if (!template) {
-      return NextResponse.json(
-        {
-          message:
-            "Task template not found.",
-          templateId,
-        },
-        {
-          status: 404,
+        if (!template) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Task template not found.",
+                    templateId,
+                },
+                {
+                    status: 404,
+                }
+            );
         }
-      );
+
+        return NextResponse.json({
+            template,
+        });
+    } catch (error) {
+        console.error(
+            "GET SINGLE TASK TEMPLATE ERROR:",
+            error
+        );
+
+        return NextResponse.json(
+            {
+                message:
+                    "Failed to load task template.",
+            },
+            {
+                status: 500,
+            }
+        );
     }
-
-    return NextResponse.json({
-      template,
-    });
-  } catch (error) {
-    console.error(
-      "GET SINGLE TASK TEMPLATE ERROR:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        message:
-          "Failed to load task template.",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
 }
 
 // ==========================================================
@@ -129,70 +132,73 @@ export async function GET(
 // ==========================================================
 
 export async function DELETE(
-  _request: Request,
-  { params }: RouteContext
+    _request: Request,
+    { params }: RouteContext
 ) {
-  try {
-    const { templateId } = await params;
+    try {
+        const { templateId } = await params;
 
-    if (!templateId) {
-      return NextResponse.json(
-        {
-          message: "Template ID is required.",
-        },
-        {
-          status: 400,
+        if (!templateId) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Template ID is required.",
+                },
+                {
+                    status: 400,
+                }
+            );
         }
-      );
-    }
 
-    const existingTemplate =
-      await prisma.taskTemplate.findUnique({
-        where: {
-          id: templateId,
-        },
-        select: {
-          id: true,
-        },
-      });
+        const existingTemplate =
+            await prisma.taskTemplate.findUnique({
+                where: {
+                    id: templateId,
+                },
 
-    if (!existingTemplate) {
-      return NextResponse.json(
-        {
-          message: "Task template not found.",
-        },
-        {
-          status: 404,
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!existingTemplate) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Task template not found.",
+                },
+                {
+                    status: 404,
+                }
+            );
         }
-      );
+
+        await prisma.taskTemplate.delete({
+            where: {
+                id: templateId,
+            },
+        });
+
+        return NextResponse.json({
+            message:
+                "Task template deleted successfully.",
+        });
+    } catch (error) {
+        console.error(
+            "DELETE TASK TEMPLATE ERROR:",
+            error
+        );
+
+        return NextResponse.json(
+            {
+                message:
+                    "Failed to delete task template.",
+            },
+            {
+                status: 500,
+            }
+        );
     }
-
-    await prisma.taskTemplate.delete({
-      where: {
-        id: templateId,
-      },
-    });
-
-    return NextResponse.json({
-      message:
-        "Task template deleted successfully.",
-    });
-  } catch (error) {
-    console.error(
-      "DELETE TASK TEMPLATE ERROR:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        message:
-          "Failed to delete task template.",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
 }
 
 // ==========================================================
@@ -200,308 +206,397 @@ export async function DELETE(
 // ==========================================================
 
 export async function PUT(
-  request: Request,
-  { params }: RouteContext
+    request: Request,
+    { params }: RouteContext
 ) {
-  try {
-    const { templateId } = await params;
+    try {
+        const { templateId } = await params;
 
-    if (!templateId) {
-      return NextResponse.json(
-        {
-          message: "Template ID is required.",
-        },
-        {
-          status: 400,
+        if (!templateId) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Template ID is required.",
+                },
+                {
+                    status: 400,
+                }
+            );
         }
-      );
-    }
 
-    const body = await request.json();
+        // ======================================================
+        // READ REQUEST BODY
+        // ======================================================
 
-    const name =
-      typeof body.name === "string"
-        ? body.name.trim()
-        : "";
+        const body = await request.json();
 
-    const categories = Array.isArray(
-      body.categories
-    )
-      ? body.categories
-      : [];
-
-    if (!name) {
-      return NextResponse.json(
-        {
-          message:
-            "Template name is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ======================================================
-    // CHECK TEMPLATE EXISTS
-    // ======================================================
-
-    const existingTemplate =
-      await prisma.taskTemplate.findUnique({
-        where: {
-          id: templateId,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-    if (!existingTemplate) {
-      return NextResponse.json(
-        {
-          message:
-            "Task template not found.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    // ======================================================
-    // CLEAN AND VALIDATE CATEGORIES + TASKS
-    // ======================================================
-
-    const cleanedCategories: CleanedCategory[] =
-      categories
-        .map(
-          (
-            category: unknown,
-            categoryIndex: number
-          ): CleanedCategory => {
-            const categoryObject =
-              category as {
-                name?: unknown;
-                tasks?: unknown;
-              };
-
-            const categoryName =
-              typeof categoryObject.name ===
-              "string"
-                ? categoryObject.name.trim()
+        const name =
+            typeof body.name === "string"
+                ? body.name.trim()
                 : "";
 
-            const tasks = Array.isArray(
-              categoryObject.tasks
-            )
-              ? categoryObject.tasks
-              : [];
+        const categories = Array.isArray(
+            body.categories
+        )
+            ? body.categories
+            : [];
 
-            return {
-              name: categoryName,
-              sortOrder: categoryIndex,
+        // ======================================================
+        // VALIDATE TEMPLATE NAME
+        // ======================================================
 
-              tasks: tasks
+        if (!name) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Template name is required.",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+        // ======================================================
+        // CHECK TEMPLATE EXISTS
+        // ======================================================
+
+        const existingTemplate =
+            await prisma.taskTemplate.findUnique({
+                where: {
+                    id: templateId,
+                },
+
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!existingTemplate) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Task template not found.",
+                },
+                {
+                    status: 404,
+                }
+            );
+        }
+
+        // ======================================================
+        // CLEAN AND VALIDATE CATEGORIES + TASKS
+        // ======================================================
+
+        const cleanedCategories: CleanedCategory[] =
+            categories
                 .map(
-                  (
-                    task: unknown,
-                    taskIndex: number
-                  ): CleanedTask => {
-                    const taskObject =
-                      task as {
-                        title?: unknown;
-                        description?: unknown;
-                        deadline?: unknown;
-                        difficulty?: unknown;
-                        teacherId?: unknown;
-                      };
+                    (
+                        category: unknown,
+                        categoryIndex: number
+                    ): CleanedCategory => {
+                        const categoryObject =
+                            category as {
+                                name?: unknown;
+                                tasks?: unknown;
+                            };
 
-                    const difficulty =
-                      Number(
-                        taskObject.difficulty
-                      );
+                        const categoryName =
+                            typeof categoryObject.name ===
+                                "string"
+                                ? categoryObject.name.trim()
+                                : "";
 
-                    return {
-                      title:
-                        typeof taskObject.title ===
-                        "string"
-                          ? taskObject.title.trim()
-                          : "",
+                        const tasks =
+                            Array.isArray(
+                                categoryObject.tasks
+                            )
+                                ? categoryObject.tasks
+                                : [];
 
-                      description:
-                        typeof taskObject.description ===
-                          "string" &&
-                        taskObject.description.trim()
-                          ? taskObject.description.trim()
-                          : null,
+                        const cleanedTasks: CleanedTask[] =
+                            tasks
+                                .map(
+                                    (
+                                        task: unknown,
+                                        taskIndex: number
+                                    ): CleanedTask => {
+                                        const taskObject =
+                                            task as {
+                                                title?: unknown;
+                                                description?: unknown;
+                                                deadline?: unknown;
+                                                difficulty?: unknown;
+                                                teacherId?: unknown;
+                                            };
 
-                      deadline:
-                        typeof taskObject.deadline ===
-                          "string" &&
-                        taskObject.deadline.trim()
-                          ? taskObject.deadline.trim()
-                          : null,
+                                        const difficulty =
+                                            Number(
+                                                taskObject.difficulty
+                                            );
 
-                      difficulty:
-                        Number.isInteger(
-                          difficulty
-                        ) &&
-                        difficulty >= 1 &&
-                        difficulty <= 5
-                          ? difficulty
-                          : 1,
+                                        return {
+                                            title:
+                                                typeof taskObject.title ===
+                                                    "string"
+                                                    ? taskObject.title.trim()
+                                                    : "",
 
-                      teacherId:
-                        typeof taskObject.teacherId ===
-                        "string"
-                          ? taskObject.teacherId
-                          : "",
+                                            description:
+                                                typeof taskObject.description ===
+                                                    "string" &&
+                                                    taskObject.description.trim()
+                                                    ? taskObject.description.trim()
+                                                    : null,
 
-                      sortOrder: taskIndex,
-                    };
-                  }
+                                            deadline:
+                                                typeof taskObject.deadline ===
+                                                    "string" &&
+                                                    taskObject.deadline.trim()
+                                                    ? taskObject.deadline.trim()
+                                                    : null,
+
+                                            difficulty:
+                                                Number.isInteger(
+                                                    difficulty
+                                                ) &&
+                                                    difficulty >= 1 &&
+                                                    difficulty <= 5
+                                                    ? difficulty
+                                                    : 1,
+
+                                            teacherId:
+                                                typeof taskObject.teacherId ===
+                                                    "string"
+                                                    ? taskObject.teacherId
+                                                    : "",
+
+                                            sortOrder:
+                                                taskIndex,
+                                        };
+                                    }
+                                )
+                                .filter(
+                                    (
+                                        task: CleanedTask
+                                    ) =>
+                                        task.title !== "" &&
+                                        task.teacherId !== ""
+                                );
+
+                        return {
+                            name: categoryName,
+                            sortOrder:
+                                categoryIndex,
+                            tasks: cleanedTasks,
+                        };
+                    }
                 )
                 .filter(
-                  (task: CleanedTask) =>
-                    task.title !== "" &&
-                    task.teacherId !== ""
-                ),
-            };
-          }
-        )
-        .filter(
-          (category: CleanedCategory) =>
-            category.name !== ""
+                    (
+                        category: CleanedCategory
+                    ) =>
+                        category.name !== ""
+                );
+
+        // ======================================================
+        // UPDATE TEMPLATE
+        // ======================================================
+
+        const updatedTemplate =
+            await prisma.$transaction(
+                async (tx) => {
+                    // ==================================================
+                    // STEP 1
+                    // DELETE OLD TEMPLATE ITEMS
+                    // ==================================================
+                    //
+                    // TaskTemplateItem.categoryId references
+                    // TaskTemplateCategory.id.
+                    //
+                    // Therefore items MUST be deleted before
+                    // their categories.
+                    //
+                    // ==================================================
+
+                    await tx.taskTemplateItem.deleteMany({
+                        where: {
+                            templateId,
+                        },
+                    });
+
+                    // ==================================================
+                    // STEP 2
+                    // DELETE OLD CATEGORIES
+                    // ==================================================
+
+                    await tx.taskTemplateCategory.deleteMany({
+                        where: {
+                            templateId,
+                        },
+                    });
+
+                    // ==================================================
+                    // STEP 3
+                    // UPDATE TEMPLATE NAME
+                    // ==================================================
+
+                    await tx.taskTemplate.update({
+                        where: {
+                            id: templateId,
+                        },
+
+                        data: {
+                            name,
+                        },
+                    });
+
+                    // ==================================================
+                    // STEP 4
+                    // CREATE CATEGORIES
+                    // ==================================================
+                    //
+                    // Categories are created individually so we get
+                    // the REAL category ID before creating items.
+                    //
+                    // This completely avoids the
+                    // TaskTemplateItem_categoryId_fkey problem.
+                    //
+                    // ==================================================
+
+                    for (
+                        const categoryData of
+                        cleanedCategories
+                    ) {
+                        const createdCategory =
+                            await tx.taskTemplateCategory.create({
+                                data: {
+                                    templateId,
+
+                                    name:
+                                        categoryData.name,
+
+                                    sortOrder:
+                                        categoryData.sortOrder,
+                                },
+                            });
+
+                        // ==================================================
+                        // STEP 5
+                        // CREATE ITEMS FOR THIS CATEGORY
+                        // ==================================================
+                        //
+                        // Both foreign keys are explicitly provided:
+                        //
+                        // templateId
+                        // categoryId
+                        //
+                        // Therefore there is no ambiguity for Prisma.
+                        //
+                        // ==================================================
+
+                        if (
+                            categoryData.tasks.length >
+                            0
+                        ) {
+                            await tx.taskTemplateItem.createMany({
+                                data:
+                                    categoryData.tasks.map(
+                                        (task) => ({
+                                            templateId,
+
+                                            categoryId:
+                                                createdCategory.id,
+
+                                            teacherId:
+                                                task.teacherId,
+
+                                            title:
+                                                task.title,
+
+                                            description:
+                                                task.description,
+
+                                            deadline:
+                                                task.deadline,
+
+                                            difficulty:
+                                                task.difficulty,
+
+                                            sortOrder:
+                                                task.sortOrder,
+                                        })
+                                    ),
+                            });
+                        }
+                    }
+
+                    // ==================================================
+                    // STEP 6
+                    // LOAD COMPLETE UPDATED TEMPLATE
+                    // ==================================================
+
+                    return tx.taskTemplate.findUniqueOrThrow({
+                        where: {
+                            id: templateId,
+                        },
+
+                        include: {
+                            categories: {
+                                orderBy: {
+                                    sortOrder:
+                                        "asc",
+                                },
+
+                                include: {
+                                    tasks: {
+                                        orderBy: {
+                                            sortOrder:
+                                                "asc",
+                                        },
+
+                                        include: {
+                                            teacher: {
+                                                select: {
+                                                    id: true,
+                                                    name: true,
+                                                    username: true,
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    });
+                }
+            );
+
+        // ======================================================
+        // SUCCESS RESPONSE
+        // ======================================================
+
+        return NextResponse.json({
+            message:
+                "Task template updated successfully.",
+
+            template:
+                updatedTemplate,
+        });
+    } catch (error) {
+        console.error(
+            "UPDATE TASK TEMPLATE ERROR:",
+            error
         );
 
-    // ======================================================
-    // UPDATE TEMPLATE
-    // ======================================================
-
-    const updatedTemplate =
-      await prisma.$transaction(
-        async (tx) => {
-          // Delete old categories.
-          // Because TaskTemplateCategory -> TaskTemplateItem
-          // uses onDelete: Cascade, the old tasks are also
-          // deleted automatically.
-          await tx.taskTemplateCategory.deleteMany({
-            where: {
-              templateId,
+        return NextResponse.json(
+            {
+                message:
+                    "Failed to update task template.",
             },
-          });
-
-          // Recreate categories and tasks.
-          return tx.taskTemplate.update({
-            where: {
-              id: templateId,
-            },
-
-            data: {
-              name,
-
-              categories: {
-                create:
-                  cleanedCategories.map(
-                    (category) => ({
-                      name: category.name,
-
-                      sortOrder:
-                        category.sortOrder,
-
-                      tasks: {
-                        create:
-                          category.tasks.map(
-                            (task) => ({
-                              title:
-                                task.title,
-
-                              description:
-                                task.description,
-
-                              deadline:
-                                task.deadline,
-
-                              difficulty:
-                                task.difficulty,
-
-                              sortOrder:
-                                task.sortOrder,
-
-                              // IMPORTANT:
-                              // Connect this task to the
-                              // current TaskTemplate.
-                              template: {
-                                connect: {
-                                  id: templateId,
-                                },
-                              },
-
-                              // Connect this task to its teacher.
-                              teacher: {
-                                connect: {
-                                  id: task.teacherId,
-                                },
-                              },
-                            })
-                          ),
-                      },
-                    })
-                  ),
-              },
-            },
-
-            // Return the updated template with
-            // categories, tasks and teachers.
-            include: {
-              categories: {
-                orderBy: {
-                  sortOrder: "asc",
-                },
-
-                include: {
-                  tasks: {
-                    orderBy: {
-                      sortOrder: "asc",
-                    },
-
-                    include: {
-                      teacher: {
-                        select: {
-                          id: true,
-                          name: true,
-                          username: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          });
-        }
-      );
-
-    return NextResponse.json({
-      message:
-        "Task template updated successfully.",
-
-      template: updatedTemplate,
-    });
-  } catch (error) {
-    console.error(
-      "UPDATE TASK TEMPLATE ERROR:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        message:
-          "Failed to update task template.",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
+            {
+                status: 500,
+            }
+        );
+    }
 }
