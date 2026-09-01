@@ -8,6 +8,10 @@ import {
     getPakistanDay,
 } from "@/lib/student-day";
 
+import {
+    getVoiceNoteSignedUrl,
+} from "@/lib/b2";
+
 export const runtime = "nodejs";
 
 type DayOfWeek =
@@ -53,11 +57,11 @@ function isValidDateString(
 
     return (
         date.getUTCFullYear() ===
-            year &&
+        year &&
         date.getUTCMonth() ===
-            month - 1 &&
+        month - 1 &&
         date.getUTCDate() ===
-            day
+        day
     );
 }
 
@@ -150,6 +154,163 @@ function createDeadline(
             2,
             "0"
         )}:00+05:00`
+    );
+}
+
+// ==========================================================
+// ADD SIGNED URLS TO VOICE NOTES
+// ==========================================================
+//
+// B2 voice notes are stored separately from
+// Cloudinary submission media.
+//
+// This converts:
+//
+// voiceNotes[]
+//
+// into media-compatible objects:
+//
+// {
+//     url,
+//     publicId,
+//     resourceType,
+//     format,
+//     mimeType,
+//     size,
+//     fileName,
+//     duration
+// }
+//
+// This allows the existing frontend to use:
+//
+// submission.media
+//
+// for BOTH Cloudinary files and B2 audio.
+// ==========================================================
+
+async function attachVoiceNotesToSubmissions<
+    T extends {
+        media: any[];
+        voiceNotes: Array<{
+            id: string;
+            submissionId: string;
+            storageKey: string;
+            mimeType: string;
+            fileName: string;
+            duration: number | null;
+            bytes: number | null;
+            createdAt: Date;
+        }>;
+    }
+>(
+    submissions: T[]
+) {
+    return Promise.all(
+        submissions.map(
+            async (submission) => {
+                if (
+                    !submission.voiceNotes.length
+                ) {
+                    return submission;
+                }
+
+                const voiceMedia =
+                    await Promise.all(
+                        submission.voiceNotes.map(
+                            async (voiceNote) => {
+                                let url: string;
+
+                                try {
+                                    url =
+                                        await getVoiceNoteSignedUrl(
+                                            voiceNote.storageKey
+                                        );
+                                } catch (error) {
+                                    console.error(
+                                        "FAILED TO GENERATE B2 SIGNED URL:",
+                                        {
+                                            voiceNoteId:
+                                                voiceNote.id,
+
+                                            storageKey:
+                                                voiceNote.storageKey,
+
+                                            error,
+                                        }
+                                    );
+
+                                    return null;
+                                }
+
+                                const format =
+                                    voiceNote.fileName
+                                        .split(".")
+                                        .pop()
+                                        ?.toLowerCase() ||
+                                    "audio";
+
+                                return {
+                                    url,
+
+                                    publicId:
+                                        voiceNote.storageKey,
+
+                                    resourceType:
+                                        "audio",
+
+                                    format,
+
+                                    mimeType:
+                                        voiceNote.mimeType,
+
+                                    fileName:
+                                        voiceNote.fileName,
+
+                                    bytes:
+                                        voiceNote.bytes ??
+                                        0,
+
+                                    // IMPORTANT
+                                    // Preserve the database voice-note ID.
+                                    id:
+                                        voiceNote.id,
+
+                                    voiceNoteId:
+                                        voiceNote.id,
+
+                                    storageKey:
+                                        voiceNote.storageKey,
+
+                                    duration:
+                                        voiceNote.duration,
+
+                                    createdAt:
+                                        voiceNote.createdAt,
+                                };
+                            }
+                        )
+                    );
+
+                const validVoiceMedia =
+                    voiceMedia.filter(
+                        (
+                            media
+                        ): media is NonNullable<
+                            typeof media
+                        > =>
+                            media !== null
+                    );
+
+                return {
+                    ...submission,
+
+                    media: [
+                        ...submission.media,
+                        ...validVoiceMedia,
+                    ],
+                };
+            }
+        )
     );
 }
 
@@ -292,19 +453,6 @@ async function loadTasks(
             }
         );
 
-    /*
-     * IMPORTANT:
-     *
-     * Explicitly type this variable.
-     *
-     * This fixes:
-     *
-     * "Variable 'dailyRecord' implicitly has an 'any' type."
-     *
-     * NonNullable removes the null possibility from
-     * existingDailyRecord.
-     */
-
     let dailyRecord:
         NonNullable<
             typeof existingDailyRecord
@@ -371,36 +519,6 @@ async function loadTasks(
     // ======================================================
 
     if (templateChanged) {
-        /*
-         * IMPORTANT:
-         *
-         * We delete the TASK records themselves.
-         *
-         * According to your Prisma schema:
-         *
-         * Task
-         *   ↓ Cascade
-         * TaskSubmission
-         *   ↓ Cascade
-         * TaskSubmissionMedia
-         *
-         * and:
-         *
-         * Task
-         *   ↓ Cascade
-         * TaskReview
-         *
-         * Therefore deleting the Task automatically removes:
-         *
-         * - submitted task
-         * - submission note
-         * - uploaded media
-         * - score/review
-         * - teacher review
-         * - checked state
-         * - completion state
-         */
-
         await prisma.$transaction(
             async (tx) => {
                 await tx.task.deleteMany(
@@ -432,12 +550,6 @@ async function loadTasks(
                 );
             }
         );
-
-        /*
-         * Reload the DailyRecord after the transaction.
-         *
-         * findUniqueOrThrow guarantees a non-null result.
-         */
 
         dailyRecord =
             await prisma.dailyRecord.findUniqueOrThrow(
@@ -545,8 +657,32 @@ async function loadTasks(
                             take: 1,
 
                             include: {
-                                media:
-                                    true,
+                                media: true,
+
+                                voiceNotes: {
+                                    orderBy: {
+                                        createdAt:
+                                            "asc",
+                                    },
+
+                                    select: {
+                                        id: true,
+                                        submissionId:
+                                            true,
+                                        storageKey:
+                                            true,
+                                        mimeType:
+                                            true,
+                                        fileName:
+                                            true,
+                                        duration:
+                                            true,
+                                        bytes:
+                                            true,
+                                        createdAt:
+                                            true,
+                                    },
+                                },
                             },
                         },
 
@@ -566,6 +702,29 @@ async function loadTasks(
                 }
             );
 
+        // ==================================================
+        // ADD B2 SIGNED URLS
+        // ==================================================
+
+        const tasksWithVoiceUrls =
+            await Promise.all(
+                existingTasks.map(
+                    async (task) => {
+                        const submissionsWithVoiceUrls =
+                            await attachVoiceNotesToSubmissions(
+                                task.submissions
+                            );
+
+                        return {
+                            ...task,
+
+                            submissions:
+                                submissionsWithVoiceUrls,
+                        };
+                    }
+                )
+            );
+
         const tasks = [];
 
         // ==================================================
@@ -576,36 +735,18 @@ async function loadTasks(
             const templateTask of
             templateCategory.tasks
         ) {
-            /*
-             * IMPORTANT:
-             *
-             * If template did NOT change:
-             *
-             *     reuse existing task
-             *
-             * If template DID change:
-             *
-             *     old tasks were deleted above
-             *
-             *     therefore this creates completely
-             *     fresh tasks.
-             *
-             * We intentionally use title only for
-             * reusing tasks inside the same unchanged
-             * DailyRecord.
-             *
-             * Template changes are NEVER matched by
-             * title because all old tasks are deleted.
-             */
-
             let task =
-                existingTasks.find(
+                tasksWithVoiceUrls.find(
                     (
                         existingTask
                     ) =>
                         existingTask.title ===
                         templateTask.title
                 );
+
+            // ==================================================
+            // CREATE NEW TASK
+            // ==================================================
 
             if (!task) {
                 task =
@@ -667,8 +808,32 @@ async function loadTasks(
                                     take: 1,
 
                                     include: {
-                                        media:
-                                            true,
+                                        media: true,
+
+                                        voiceNotes: {
+                                            orderBy: {
+                                                createdAt:
+                                                    "asc",
+                                            },
+
+                                            select: {
+                                                id: true,
+                                                submissionId:
+                                                    true,
+                                                storageKey:
+                                                    true,
+                                                mimeType:
+                                                    true,
+                                                fileName:
+                                                    true,
+                                                duration:
+                                                    true,
+                                                bytes:
+                                                    true,
+                                                createdAt:
+                                                    true,
+                                            },
+                                        },
                                     },
                                 },
 
@@ -687,6 +852,22 @@ async function loadTasks(
                             },
                         }
                     );
+
+                // ==================================================
+                // ADD B2 SIGNED URLS TO NEW TASK
+                // ==================================================
+
+                const submissionsWithVoiceUrls =
+                    await attachVoiceNotesToSubmissions(
+                        task.submissions
+                    );
+
+                task = {
+                    ...task,
+
+                    submissions:
+                        submissionsWithVoiceUrls,
+                };
             }
 
             tasks.push(task);
@@ -789,9 +970,9 @@ export async function GET(
 
         const dateString =
             requestedDate &&
-            isValidDateString(
-                requestedDate
-            )
+                isValidDateString(
+                    requestedDate
+                )
                 ? requestedDate
                 : getPakistanDate();
 

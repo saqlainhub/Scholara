@@ -2,8 +2,28 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { getVoiceNoteSignedUrl } from "@/lib/b2";
 
 export const runtime = "nodejs";
+
+// ==========================================================
+// TYPES
+// ==========================================================
+
+type VoiceNoteRecord = {
+    id: string;
+    submissionId: string;
+    storageKey: string;
+    mimeType: string;
+    fileName: string;
+    duration: number | null;
+    bytes: number | null;
+    createdAt: Date;
+};
+
+// ==========================================================
+// PAKISTAN DATE HELPERS
+// ==========================================================
 
 function formatPakistanDate(value: Date) {
     return new Intl.DateTimeFormat(
@@ -31,6 +51,168 @@ function formatPakistanDateLabel(
         }
     ).format(value);
 }
+
+// ==========================================================
+// VOICE NOTE SERIALIZATION
+// ==========================================================
+
+/**
+ * Voice notes are stored in Backblaze B2.
+ *
+ * The database stores only the storageKey.
+ *
+ * Before returning data to the browser, we generate
+ * temporary signed URLs for each voice note.
+ *
+ * B2 credentials are never sent to the client.
+ */
+async function serializeVoiceNotes(
+    voiceNotes: VoiceNoteRecord[]
+) {
+    return Promise.all(
+        voiceNotes.map(
+            async (voice) => {
+                let url: string | null =
+                    null;
+
+                try {
+                    if (
+                        !voice.storageKey
+                    ) {
+                        throw new Error(
+                            "Voice note has no storage key."
+                        );
+                    }
+
+                    url =
+                        await getVoiceNoteSignedUrl(
+                            voice.storageKey
+                        );
+                } catch (error) {
+                    console.error(
+                        "STUDENT ASSIGNMENTS: FAILED TO GENERATE B2 SIGNED URL:",
+                        {
+                            voiceNoteId:
+                                voice.id,
+
+                            submissionId:
+                                voice.submissionId,
+
+                            storageKey:
+                                voice.storageKey,
+
+                            error,
+                        }
+                    );
+                }
+
+                return {
+                    id: voice.id,
+
+                    submissionId:
+                        voice.submissionId,
+
+                    storageKey:
+                        voice.storageKey,
+
+                    mimeType:
+                        voice.mimeType,
+
+                    fileName:
+                        voice.fileName,
+
+                    duration:
+                        voice.duration,
+
+                    bytes:
+                        voice.bytes,
+
+                    createdAt:
+                        voice.createdAt,
+
+                    /**
+                     * Temporary signed B2 URL.
+                     *
+                     * This URL is safe to send to
+                     * the browser.
+                     */
+                    url,
+                };
+            }
+        )
+    );
+}
+
+// ==========================================================
+// SERIALIZE SUBMISSION
+// ==========================================================
+
+/**
+ * Converts the latest database submission into a
+ * browser-safe response.
+ *
+ * Normal media remains unchanged because it already
+ * contains browser-accessible URLs.
+ *
+ * Voice notes receive temporary B2 signed URLs.
+ */
+async function serializeSubmission(
+    submission: {
+        id: string;
+        taskId: string;
+        studentId: string;
+        note: string | null;
+        submittedAt: Date;
+        media: unknown[];
+        voiceNotes: VoiceNoteRecord[];
+    }
+) {
+    const voiceNotes =
+        await serializeVoiceNotes(
+            submission.voiceNotes
+        );
+
+    return {
+        id: submission.id,
+
+        taskId:
+            submission.taskId,
+
+        studentId:
+            submission.studentId,
+
+        note:
+            submission.note,
+
+        submittedAt:
+            submission.submittedAt,
+
+        /**
+         * Cloudinary media.
+         *
+         * Images, videos and PDFs.
+         */
+        media:
+            submission.media,
+
+        /**
+         * Backblaze B2 voice notes.
+         *
+         * Each record contains a temporary signed URL.
+         */
+        voiceNotes,
+
+        mediaCount:
+            submission.media.length,
+
+        voiceNoteCount:
+            voiceNotes.length,
+    };
+}
+
+// ==========================================================
+// GET
+// ==========================================================
 
 export async function GET() {
     try {
@@ -75,7 +257,8 @@ export async function GET() {
         const tasks =
             await prisma.task.findMany({
                 where: {
-                    studentId: session.id,
+                    studentId:
+                        session.id,
                 },
 
                 orderBy: [
@@ -98,7 +281,8 @@ export async function GET() {
                         select: {
                             id: true,
                             name: true,
-                            username: true,
+                            username:
+                                true,
                         },
                     },
 
@@ -116,26 +300,38 @@ export async function GET() {
                     // =================================================
                     // LATEST SUBMISSION
                     // =================================================
-                    //
-                    // We only need the latest submission for the
-                    // student portal because that is the submission
-                    // corresponding to the current review.
-                    //
-                    // Media is included here so the popup can show
-                    // every file/image uploaded by the student.
-                    //
-                    // =================================================
 
                     submissions: {
-                        orderBy: {
-                            submittedAt:
-                                "desc",
-                        },
+                        orderBy: [
+                            {
+                                submittedAt:
+                                    "desc",
+                            },
+                            {
+                                id:
+                                    "desc",
+                            },
+                        ],
 
                         take: 1,
 
                         include: {
+                            // -----------------------------------------
+                            // CLOUDINARY MEDIA
+                            // -----------------------------------------
+
                             media: true,
+
+                            // -----------------------------------------
+                            // BACKBLAZE B2 VOICE NOTES
+                            // -----------------------------------------
+
+                            voiceNotes: {
+                                orderBy: {
+                                    createdAt:
+                                        "asc",
+                                },
+                            },
                         },
                     },
 
@@ -148,8 +344,11 @@ export async function GET() {
                             teacher: {
                                 select: {
                                     id: true,
+
                                     name: true,
-                                    username: true,
+
+                                    username:
+                                        true,
                                 },
                             },
                         },
@@ -161,14 +360,12 @@ export async function GET() {
         // ONLY CURRENTLY CHECKED TASKS
         // =====================================================
         //
-        // A task should appear in Assignments only when:
+        // A task appears when:
         //
         // 1. It has been checked.
-        // 2. It has a current review.
-        // 3. The student has not submitted again after
-        //    that review.
-        //
-        // This is what makes recheck work.
+        // 2. It has a review.
+        // 3. The latest submission is not newer than
+        //    the current review.
         //
         // =====================================================
 
@@ -183,11 +380,16 @@ export async function GET() {
                     }
 
                     const latestSubmission =
-                        task.submissions[0];
+                        task
+                            .submissions[0];
 
-                    // No submission means there is
-                    // nothing newer than the review.
-                    if (!latestSubmission) {
+                    /**
+                     * No submission means there is
+                     * nothing newer than the review.
+                     */
+                    if (
+                        !latestSubmission
+                    ) {
                         return true;
                     }
 
@@ -201,6 +403,10 @@ export async function GET() {
                             task.review.checkedAt
                         ).getTime();
 
+                    /**
+                     * Preserve existing behaviour if
+                     * either timestamp is invalid.
+                     */
                     if (
                         Number.isNaN(
                             submissionTime
@@ -212,16 +418,68 @@ export async function GET() {
                         return true;
                     }
 
-                    /*
-                     * If student submitted AFTER
-                     * the current review, the task
-                     * is waiting for recheck.
+                    /**
+                     * If the student submitted again
+                     * after the teacher reviewed the task,
+                     * it should not appear as currently
+                     * checked.
                      */
                     return (
                         submissionTime <=
                         reviewTime
                     );
                 }
+            );
+
+        // =====================================================
+        // SERIALIZE LATEST SUBMISSIONS
+        // =====================================================
+        //
+        // Generate fresh B2 signed URLs before the
+        // data is sent to the browser.
+        //
+        // We create a new task response rather than
+        // modifying Prisma objects.
+        //
+        // =====================================================
+
+        const serializedTasks =
+            await Promise.all(
+                checkedTasks.map(
+                    async (task) => {
+                        const latestSubmission =
+                            task
+                                .submissions[0] ??
+                            null;
+
+                        const submission =
+                            latestSubmission
+                                ? await serializeSubmission(
+                                      latestSubmission
+                                  )
+                                : null;
+
+                        return {
+                            /**
+                             * Keep all existing task
+                             * properties unchanged.
+                             */
+                            ...task,
+
+                            /**
+                             * Replace Prisma submissions
+                             * with the serialized latest
+                             * submission.
+                             */
+                            submissions:
+                                submission
+                                    ? [
+                                          submission,
+                                      ]
+                                    : [],
+                        };
+                    }
+                )
             );
 
         // =====================================================
@@ -234,11 +492,12 @@ export async function GET() {
                 {
                     date: string;
                     label: string;
-                    tasks: typeof checkedTasks;
+                    tasks:
+                        typeof serializedTasks;
                 }
             >();
 
-        for (const task of checkedTasks) {
+        for (const task of serializedTasks) {
             if (!task.review) {
                 continue;
             }
@@ -266,14 +525,17 @@ export async function GET() {
                 groupMap.set(
                     dateKey,
                     {
-                        date: dateKey,
+                        date:
+                            dateKey,
 
                         label:
                             formatPakistanDateLabel(
                                 reviewDate
                             ),
 
-                        tasks: [task],
+                        tasks: [
+                            task,
+                        ],
                     }
                 );
             }
@@ -300,7 +562,9 @@ export async function GET() {
         // SORT TASKS INSIDE GROUPS
         // =====================================================
 
-        for (const group of groups) {
+        for (
+            const group of groups
+        ) {
             group.tasks.sort(
                 (a, b) => {
                     const aTime =

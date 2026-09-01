@@ -143,6 +143,23 @@ model TaskSubmission {
   @@index([taskId])
   @@index([studentId])
   @@index([submittedAt])
+  voiceNotes TaskSubmissionVoiceNote[]
+}
+
+model TaskSubmissionVoiceNote {
+  id           String   @id @default(cuid())
+  submissionId String
+  storageKey   String
+  mimeType     String
+  fileName     String
+  duration     Int?
+  bytes        Int?
+  createdAt    DateTime @default(now())
+
+  submission TaskSubmission @relation(fields: [submissionId],references: [id],onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([createdAt])
 }
 
 model TaskSubmissionMedia {

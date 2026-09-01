@@ -5,6 +5,9 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import {
+    deleteVoiceNoteFromB2,
+} from "@/lib/b2";
 
 export const runtime = "nodejs";
 
@@ -56,9 +59,7 @@ function normalizeMedia(
 function parseMedia(
     value: unknown
 ): SubmittedMediaInput[] {
-    if (
-        !Array.isArray(value)
-    ) {
+    if (!Array.isArray(value)) {
         return [];
     }
 
@@ -66,12 +67,40 @@ function parseMedia(
         (
             item: unknown
         ): item is SubmittedMediaInput =>
-            typeof item ===
-                "object" &&
+            typeof item === "object" &&
             item !== null &&
             typeof (
                 item as SubmittedMediaInput
             ).url === "string"
+    );
+}
+
+/**
+ * Parse voice-note IDs sent by the client.
+ *
+ * These are ONLY the IDs of existing voice notes
+ * that the student wants to KEEP.
+ *
+ * New voice notes do not have IDs yet.
+ */
+function parseVoiceNoteIds(
+    value: unknown
+): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return Array.from(
+        new Set(
+            value.filter(
+                (
+                    item: unknown
+                ): item is string =>
+                    typeof item ===
+                        "string" &&
+                    item.trim().length > 0
+            )
+        )
     );
 }
 
@@ -134,7 +163,7 @@ export async function POST(
         }
 
         // =====================================================
-        // FIND EXACT TASK
+        // FIND TASK
         // =====================================================
 
         const task =
@@ -177,7 +206,26 @@ export async function POST(
 
         let note = "";
 
-        let requestedMedia: SubmittedMediaInput[] =
+        let requestedMedia:
+            SubmittedMediaInput[] = [];
+
+        /*
+         * IDs of EXISTING voice notes that the
+         * student wants to KEEP.
+         *
+         * Example:
+         *
+         * DB:
+         *   A
+         *   B
+         *   C
+         *
+         * Client sends:
+         *   ["B", "C"]
+         *
+         * Therefore A must be deleted.
+         */
+        let retainedVoiceNoteIds: string[] =
             [];
 
         if (
@@ -198,6 +246,11 @@ export async function POST(
                 parseMedia(
                     body.media
                 );
+
+            retainedVoiceNoteIds =
+                parseVoiceNoteIds(
+                    body.voiceNoteIds
+                );
         } else if (
             contentType.includes(
                 "multipart/form-data"
@@ -209,6 +262,10 @@ export async function POST(
             const formData =
                 await request.formData();
 
+            // ---------------------------------------------
+            // NOTE
+            // ---------------------------------------------
+
             const noteValue =
                 formData.get("note");
 
@@ -218,6 +275,10 @@ export async function POST(
                     ? noteValue
                     : "";
 
+            // ---------------------------------------------
+            // NORMAL MEDIA
+            // ---------------------------------------------
+
             const mediaValue =
                 formData.get("media");
 
@@ -226,17 +287,40 @@ export async function POST(
                 "string"
             ) {
                 try {
-                    const parsed =
-                        JSON.parse(
-                            mediaValue
-                        );
-
                     requestedMedia =
                         parseMedia(
-                            parsed
+                            JSON.parse(
+                                mediaValue
+                            )
                         );
                 } catch {
                     requestedMedia =
+                        [];
+                }
+            }
+
+            // ---------------------------------------------
+            // RETAINED VOICE NOTES
+            // ---------------------------------------------
+
+            const voiceNoteIdsValue =
+                formData.get(
+                    "voiceNoteIds"
+                );
+
+            if (
+                typeof voiceNoteIdsValue ===
+                "string"
+            ) {
+                try {
+                    retainedVoiceNoteIds =
+                        parseVoiceNoteIds(
+                            JSON.parse(
+                                voiceNoteIdsValue
+                            )
+                        );
+                } catch {
+                    retainedVoiceNoteIds =
                         [];
                 }
             }
@@ -245,6 +329,30 @@ export async function POST(
                 {
                     message:
                         "Unsupported request content type.",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+        // =====================================================
+        // REJECT BROWSER BLOB URLs
+        // =====================================================
+
+        const invalidBlobMedia =
+            requestedMedia.some(
+                (media) =>
+                    media.url.startsWith(
+                        "blob:"
+                    )
+            );
+
+        if (invalidBlobMedia) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Voice recordings must be uploaded through the voice-notes endpoint.",
                 },
                 {
                     status: 400,
@@ -274,6 +382,121 @@ export async function POST(
             );
 
         // =====================================================
+        // FIND LATEST SUBMISSION
+        // =====================================================
+
+        const existingSubmission =
+            await prisma.taskSubmission.findFirst(
+                {
+                    where: {
+                        taskId,
+
+                        studentId:
+                            session.id,
+                    },
+
+                    orderBy: [
+                        {
+                            submittedAt:
+                                "desc",
+                        },
+
+                        {
+                            id:
+                                "desc",
+                        },
+                    ],
+
+                    select: {
+                        id: true,
+
+                        voiceNotes: {
+                            select: {
+                                id: true,
+
+                                storageKey:
+                                    true,
+                            },
+                        },
+                    },
+                }
+            );
+
+        // =====================================================
+        // DETERMINE VOICE NOTES TO DELETE
+        // =====================================================
+
+        /*
+         * IMPORTANT:
+         *
+         * Only existing voice notes can be deleted here.
+         *
+         * New voice notes are uploaded AFTER this
+         * submit request through /voice-notes.
+         */
+
+        const voiceNotesToDelete =
+            existingSubmission
+                ? existingSubmission.voiceNotes.filter(
+                      (
+                          voiceNote
+                      ) =>
+                          !retainedVoiceNoteIds.includes(
+                              voiceNote.id
+                          )
+                  )
+                : [];
+
+        /*
+         * Make sure the client cannot send an arbitrary
+         * voice-note ID belonging to another submission.
+         *
+         * Every retained ID must belong to the current
+         * submission.
+         */
+
+        if (
+            existingSubmission &&
+            retainedVoiceNoteIds.length >
+                0
+        ) {
+            const existingVoiceNoteIds =
+                new Set(
+                    existingSubmission.voiceNotes.map(
+                        (
+                            voiceNote
+                        ) =>
+                            voiceNote.id
+                    )
+                );
+
+            const invalidRetainedIds =
+                retainedVoiceNoteIds.filter(
+                    (
+                        id
+                    ) =>
+                        !existingVoiceNoteIds.has(
+                            id
+                        )
+                );
+
+            if (
+                invalidRetainedIds.length >
+                0
+            ) {
+                return NextResponse.json(
+                    {
+                        message:
+                            "One or more voice notes do not belong to this submission.",
+                    },
+                    {
+                        status: 400,
+                    }
+                );
+            }
+        }
+
+        // =====================================================
         // SUBMISSION TIME
         // =====================================================
 
@@ -287,57 +510,20 @@ export async function POST(
                 : false;
 
         // =====================================================
-        // UPDATE CURRENT SUBMISSION
-        // =====================================================
-        //
-        // IMPORTANT:
-        //
-        // We no longer create a new submission
-        // for every resubmit.
-        //
-        // We update the latest submission
-        // belonging to THIS EXACT TASK.
-        //
+        // UPDATE / CREATE SUBMISSION
         // =====================================================
 
         const result =
             await prisma.$transaction(
                 async (tx) => {
-                    const existingSubmission =
-                        await tx.taskSubmission.findFirst(
-                            {
-                                where: {
-                                    taskId,
-
-                                    studentId:
-                                        session.id,
-                                },
-
-                                orderBy: [
-                                    {
-                                        submittedAt:
-                                            "desc",
-                                    },
-                                    {
-                                        id:
-                                            "desc",
-                                    },
-                                ],
-
-                                select: {
-                                    id: true,
-                                },
-                            }
-                        );
-
                     let submission;
 
                     if (
                         existingSubmission
                     ) {
-                        // =========================================
-                        // DELETE OLD MEDIA
-                        // =========================================
+                        // ---------------------------------------------
+                        // DELETE NORMAL CLOUDINARY MEDIA
+                        // ---------------------------------------------
 
                         await tx.taskSubmissionMedia.deleteMany(
                             {
@@ -348,9 +534,36 @@ export async function POST(
                             }
                         );
 
-                        // =========================================
-                        // UPDATE EXISTING SUBMISSION
-                        // =========================================
+                        // ---------------------------------------------
+                        // DELETE REMOVED VOICE NOTES FROM DATABASE
+                        // ---------------------------------------------
+
+                        if (
+                            voiceNotesToDelete.length >
+                            0
+                        ) {
+                            await tx.taskSubmissionVoiceNote.deleteMany(
+                                {
+                                    where: {
+                                        id: {
+                                            in: voiceNotesToDelete.map(
+                                                (
+                                                    voiceNote
+                                                ) =>
+                                                    voiceNote.id
+                                            ),
+                                        },
+
+                                        submissionId:
+                                            existingSubmission.id,
+                                    },
+                                }
+                            );
+                        }
+
+                        // ---------------------------------------------
+                        // UPDATE SUBMISSION
+                        // ---------------------------------------------
 
                         submission =
                             await tx.taskSubmission.update(
@@ -397,13 +610,16 @@ export async function POST(
 
                                     include: {
                                         media: true,
+
+                                        voiceNotes:
+                                            true,
                                     },
                                 }
                             );
                     } else {
-                        // =========================================
+                        // ---------------------------------------------
                         // FIRST SUBMISSION
-                        // =========================================
+                        // ---------------------------------------------
 
                         submission =
                             await tx.taskSubmission.create(
@@ -450,14 +666,17 @@ export async function POST(
 
                                     include: {
                                         media: true,
+
+                                        voiceNotes:
+                                            true,
                                     },
                                 }
                             );
                     }
 
-                    // =========================================
+                    // =================================================
                     // UPDATE TASK
-                    // =========================================
+                    // =================================================
 
                     const updatedTask =
                         await tx.task.update({
@@ -478,12 +697,16 @@ export async function POST(
 
                             select: {
                                 id: true,
+
                                 isCompleted:
                                     true,
+
                                 isDelayed:
                                     true,
+
                                 isChecked:
                                     true,
+
                                 completedAt:
                                     true,
                             },
@@ -491,11 +714,70 @@ export async function POST(
 
                     return {
                         submission,
+
                         task:
                             updatedTask,
                     };
                 }
             );
+
+        // =====================================================
+        // DELETE REMOVED VOICE NOTE FILES FROM B2
+        // =====================================================
+
+        /*
+         * Database deletion above is authoritative.
+         *
+         * Now remove the corresponding physical objects
+         * from Backblaze B2.
+         */
+
+        if (
+            voiceNotesToDelete.length >
+            0
+        ) {
+            const b2DeleteResults =
+                await Promise.allSettled(
+                    voiceNotesToDelete.map(
+                        (
+                            voiceNote
+                        ) =>
+                            deleteVoiceNoteFromB2(
+                                voiceNote.storageKey
+                            )
+                    )
+                );
+
+            b2DeleteResults.forEach(
+                (
+                    result,
+                    index
+                ) => {
+                    if (
+                        result.status ===
+                        "rejected"
+                    ) {
+                        console.error(
+                            "FAILED TO DELETE VOICE NOTE FROM B2:",
+                            {
+                                voiceNoteId:
+                                    voiceNotesToDelete[
+                                        index
+                                    ]?.id,
+
+                                storageKey:
+                                    voiceNotesToDelete[
+                                        index
+                                    ]?.storageKey,
+
+                                error:
+                                    result.reason,
+                            }
+                        );
+                    }
+                }
+            );
+        }
 
         // =====================================================
         // RESPONSE
@@ -515,6 +797,13 @@ export async function POST(
             mediaCount:
                 result.submission.media
                     .length,
+
+            voiceNoteCount:
+                result.submission
+                    .voiceNotes.length,
+
+            deletedVoiceNoteCount:
+                voiceNotesToDelete.length,
         });
     } catch (error) {
         console.error(

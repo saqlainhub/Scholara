@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import LeaderboardPage from "@/app/components/leaderboard/LeaderboardPage";
 
 export default function HeadLeaderboardPage() {

@@ -1,3 +1,4 @@
+
 import {
     NextRequest,
     NextResponse,
@@ -5,8 +6,13 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { getVoiceNoteSignedUrl } from "@/lib/b2";
 
 export const runtime = "nodejs";
+
+// ==========================================================
+// DATE HELPERS
+// ==========================================================
 
 function getPakistanDateString(
     date = new Date()
@@ -37,11 +43,138 @@ function formatGroupDate(
     ).format(date);
 }
 
+// ==========================================================
+// VOICE NOTE SERIALIZATION
+// ==========================================================
+
+/**
+ * Converts B2 voice-note database records into
+ * browser-safe objects containing temporary signed URLs.
+ *
+ * The browser never receives B2 credentials.
+ *
+ * Database:
+ *   storageKey
+ *
+ * Browser:
+ *   temporary signed URL
+ */
+async function serializeVoiceNotes(
+    voiceNotes: any[]
+) {
+    return Promise.all(
+        voiceNotes.map(
+            async (voice) => {
+                let url: string | null =
+                    null;
+
+                try {
+                    if (
+                        !voice.storageKey
+                    ) {
+                        throw new Error(
+                            "Voice note has no storage key."
+                        );
+                    }
+
+                    url =
+                        await getVoiceNoteSignedUrl(
+                            voice.storageKey
+                        );
+                } catch (error) {
+                    console.error(
+                        "FAILED TO GENERATE B2 SIGNED URL:",
+                        {
+                            voiceNoteId:
+                                voice.id,
+
+                            submissionId:
+                                voice.submissionId,
+
+                            storageKey:
+                                voice.storageKey,
+
+                            error,
+                        }
+                    );
+                }
+
+                return {
+                    id: voice.id,
+
+                    submissionId:
+                        voice.submissionId,
+
+                    storageKey:
+                        voice.storageKey,
+
+                    mimeType:
+                        voice.mimeType,
+
+                    fileName:
+                        voice.fileName,
+
+                    duration:
+                        voice.duration,
+
+                    bytes:
+                        voice.bytes,
+
+                    createdAt:
+                        voice.createdAt,
+
+                    url,
+                };
+            }
+        )
+    );
+}
+
+// ==========================================================
+// SUBMISSION SERIALIZATION
+// ==========================================================
+
+/**
+ * Serializes a submission.
+ *
+ * Normal media remains unchanged.
+ *
+ * B2 voice notes receive temporary signed URLs.
+ */
+async function serializeSubmission(
+    submission: any
+) {
+    const voiceNotes =
+        await serializeVoiceNotes(
+            submission.voiceNotes ||
+                []
+        );
+
+    return {
+        ...submission,
+
+        voiceNotes,
+
+        mediaCount:
+            submission.media?.length ??
+            0,
+
+        voiceNoteCount:
+            voiceNotes.length,
+    };
+}
+
+// ==========================================================
+// GET
+// ==========================================================
+
 export async function GET(
     request: NextRequest
 ) {
     try {
+        // ==================================================
         // AUTH
+        // ==================================================
 
         const session =
             await getSession();
@@ -73,7 +206,9 @@ export async function GET(
             );
         }
 
+        // ==================================================
         // FILTER
+        // ==================================================
 
         const filter =
             request.nextUrl.searchParams.get(
@@ -113,7 +248,9 @@ export async function GET(
             );
         }
 
+        // ==================================================
         // BASE TASK FILTER
+        // ==================================================
 
         const baseWhere = {
             teacherId: session.id,
@@ -123,7 +260,9 @@ export async function GET(
             },
         };
 
+        // ==================================================
         // STATS
+        // ==================================================
 
         const [
             totalTasks,
@@ -167,12 +306,15 @@ export async function GET(
                 }),
             ]);
 
+        // ==================================================
         // FILTERED TASKS
+        // ==================================================
 
         const filteredWhere = {
             ...baseWhere,
 
-            ...(filter === "checked"
+            ...(filter ===
+            "checked"
                 ? {
                       isChecked: true,
                   }
@@ -184,7 +326,9 @@ export async function GET(
                 : {}),
         };
 
+        // ==================================================
         // LOAD TASKS
+        // ==================================================
 
         const tasks =
             await prisma.task.findMany({
@@ -239,6 +383,17 @@ export async function GET(
 
                         include: {
                             media: true,
+
+                            // ==================================
+                            // B2 VOICE NOTES
+                            // ==================================
+
+                            voiceNotes: {
+                                orderBy: {
+                                    createdAt:
+                                        "asc",
+                                },
+                            },
                         },
                     },
 
@@ -248,7 +403,8 @@ export async function GET(
                                 select: {
                                     id: true,
                                     name: true,
-                                    username: true,
+                                    username:
+                                        true,
                                 },
                             },
                         },
@@ -256,7 +412,47 @@ export async function GET(
                 },
             });
 
+        // ==========================================================
+        // SERIALIZE B2 VOICE NOTES
+        // ==========================================================
+
+        /**
+         * IMPORTANT:
+         *
+         * The assignments API is the API currently used by
+         * the teacher portal when the review modal opens.
+         *
+         * Therefore we generate temporary B2 URLs here.
+         */
+
+        const serializedTasks =
+            await Promise.all(
+                tasks.map(
+                    async (task) => {
+                        const serializedSubmissions =
+                            await Promise.all(
+                                task.submissions.map(
+                                    async (
+                                        submission
+                                    ) =>
+                                        serializeSubmission(
+                                            submission
+                                        )
+                                )
+                            );
+
+                        return {
+                            task,
+
+                            serializedSubmissions,
+                        };
+                    }
+                )
+            );
+
+        // ==========================================================
         // GROUP BY SUBMISSION DAY
+        // ==========================================================
 
         const groupsMap =
             new Map<
@@ -268,22 +464,29 @@ export async function GET(
                 }
             >();
 
-        for (const task of tasks) {
+        for (const item of serializedTasks) {
+            const task =
+                item.task;
+
+            const serializedSubmissions =
+                item.serializedSubmissions;
+
+            // ==================================================
             // LATEST SUBMISSION
+            // ==================================================
 
             const latestSubmission =
-                task.submissions.length >
+                serializedSubmissions.length >
                 0
-                    ? task
-                          .submissions[
-                          task
-                              .submissions
-                              .length -
+                    ? serializedSubmissions[
+                          serializedSubmissions.length -
                               1
                       ]
                     : null;
 
+            // ==================================================
             // USE SUBMISSION DATE
+            // ==================================================
 
             const displayDate =
                 latestSubmission
@@ -318,7 +521,9 @@ export async function GET(
                 );
             }
 
+            // ==================================================
             // NEEDS RECHECK
+            // ==================================================
 
             const needsRecheck =
                 Boolean(
@@ -329,7 +534,9 @@ export async function GET(
                                 .checkedAt
                 );
 
+            // ==================================================
             // BUTTON STATE
+            // ==================================================
 
             const reviewStatus =
                 needsRecheck
@@ -337,6 +544,44 @@ export async function GET(
                     : task.isChecked
                     ? "view"
                     : "check";
+
+            // ==================================================
+            // DEBUG
+            // ==================================================
+
+            console.log(
+                "===== ASSIGNMENT VOICE DEBUG ====="
+            );
+
+            console.log(
+                "Task ID:",
+                task.id
+            );
+
+            console.log(
+                "Latest Submission ID:",
+                latestSubmission?.id
+            );
+
+            console.log(
+                "Voice Notes:",
+                latestSubmission?.voiceNotes
+            );
+
+            console.log(
+                "Voice Note Count:",
+                latestSubmission
+                    ?.voiceNotes
+                    ?.length
+            );
+
+            console.log(
+                "=================================="
+            );
+
+            // ==================================================
+            // PUSH TASK
+            // ==================================================
 
             group.tasks.push({
                 id: task.id,
@@ -387,8 +632,14 @@ export async function GET(
                 category:
                     task.category,
 
+                /**
+                 * IMPORTANT:
+                 *
+                 * These submissions now contain
+                 * B2 signed voice-note URLs.
+                 */
                 submissions:
-                    task.submissions,
+                    serializedSubmissions,
 
                 review:
                     task.review,
@@ -398,7 +649,9 @@ export async function GET(
             });
         }
 
+        // ==================================================
         // SORT GROUPS
+        // ==================================================
 
         const groups =
             Array.from(
@@ -415,7 +668,10 @@ export async function GET(
                 )
                 .map((group) => {
                     group.tasks.sort(
-                        (a: any, b: any) =>
+                        (
+                            a: any,
+                            b: any
+                        ) =>
                             new Date(
                                 b.date
                             ).getTime() -
@@ -427,7 +683,9 @@ export async function GET(
                     return group;
                 });
 
+        // ==================================================
         // RESPONSE
+        // ==================================================
 
         return NextResponse.json({
             stats: {
@@ -455,7 +713,9 @@ export async function GET(
         return NextResponse.json(
             {
                 message:
-                    "Failed to load teacher assignments.",
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to load teacher assignments.",
             },
             {
                 status: 500,
@@ -463,3 +723,4 @@ export async function GET(
         );
     }
 }
+

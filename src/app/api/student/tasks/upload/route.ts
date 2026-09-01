@@ -171,6 +171,18 @@ export async function POST(
             );
         }
 
+        if (fileValue.type.startsWith("audio/")) {
+            return NextResponse.json(
+                {
+                    message:
+                        "Audio files must be uploaded through the voice-notes endpoint.",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
         const uploaded =
             await uploadToCloudinary(
                 fileValue
