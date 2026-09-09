@@ -672,15 +672,18 @@ export default function StudentDetail({
     return (
         <>
             <main className="min-w-0 space-y-5 overflow-x-hidden p-4 sm:space-y-6 sm:p-6 lg:space-y-7 lg:p-8">
+
                 {/* =====================================================
                     PROFILE HEADER
                 ====================================================== */}
 
                 <section className="rounded-2xl border border-(--border) p-4 sm:p-5 lg:p-6">
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+
                         {/* PROFILE */}
 
                         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+
                             {student.profileImg ? (
                                 <img
                                     src={
@@ -700,7 +703,9 @@ export default function StudentDetail({
                             )}
 
                             <div className="min-w-0">
+
                                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+
                                     <h1 className="min-w-0 break-words font-serif text-xl font-semibold leading-tight sm:text-2xl">
                                         {
                                             student.name
@@ -717,6 +722,7 @@ export default function StudentDetail({
                                             ? "ACTIVE"
                                             : "INACTIVE"}
                                     </span>
+
                                 </div>
 
                                 <div className="mt-1 truncate text-sm opacity-60">
@@ -732,18 +738,23 @@ export default function StudentDetail({
                                         ? ` · ${student.teacher.name || student.teacher.username}`
                                         : ""}
                                 </div>
+
                             </div>
+
                         </div>
+
 
                         {/* ACTIONS */}
 
                         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+
                             <Link
                                 href={`/head/students/${student.id}/edit`}
                                 className="flex min-h-11 items-center justify-center rounded-xl border border-(--gold-500) px-4 py-2.5 text-center text-sm font-medium text-(--gold-500) transition hover:bg-(--gold-500) hover:text-black sm:px-6"
                             >
                                 Edit
                             </Link>
+
 
                             {active ? (
                                 <button
@@ -777,6 +788,7 @@ export default function StudentDetail({
                                 </button>
                             )}
 
+
                             <button
                                 type="button"
                                 disabled={
@@ -792,15 +804,31 @@ export default function StudentDetail({
                                 Delete
                             </button>
 
+
                             <Link
                                 href={`/api/head/students/${student.id}/view`}
                                 className="col-span-2 flex min-h-11 items-center justify-center rounded-xl bg-(--gold-500) px-4 py-2.5 text-center text-sm font-medium text-black transition hover:bg-(--gold-500)/80 sm:col-span-1"
                             >
                                 View Student Page
                             </Link>
+
+
+                            {/* =================================================
+                                REPORT CARD BUTTON
+                            ================================================== */}
+
+                            <Link
+                                href={`/head/students/${student.id}/report/date`}
+                                className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-(--gold-500) bg-(--gold-500)/10 px-4 py-2.5 text-center text-sm font-semibold text-(--gold-400) transition hover:bg-(--gold-500) hover:text-black sm:col-span-1"
+                            >
+                                Report Card
+                            </Link>
+
                         </div>
+
                     </div>
                 </section>
+
 
                 {/* =====================================================
                     MESSAGES
@@ -818,15 +846,19 @@ export default function StudentDetail({
                     </div>
                 )}
 
+
                 {/* =====================================================
                     PROFILE INFORMATION + WEEKLY PLAN
                 ====================================================== */}
 
                 <section className="grid min-w-0 gap-4 sm:gap-5 lg:grid-cols-2">
+
                     {/* PROFILE INFORMATION */}
 
                     <div className="min-w-0 rounded-2xl border border-(--border) p-4 sm:p-5 lg:p-6">
+
                         <div>
+
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-(--gold-400) sm:text-xs">
                                 Account
                             </p>
@@ -834,9 +866,11 @@ export default function StudentDetail({
                             <h2 className="mt-1 font-serif text-lg sm:text-xl">
                                 Profile Information
                             </h2>
+
                         </div>
 
                         <div className="mt-5 space-y-4 sm:mt-6">
+
                             <InfoRow
                                 label="Name"
                                 value={
@@ -864,13 +898,18 @@ export default function StudentDetail({
                                     student.createdAt
                                 )}
                             />
+
                         </div>
+
                     </div>
+
 
                     {/* WEEKLY PLAN */}
 
                     <div className="min-w-0 rounded-2xl border border-(--border) p-4 sm:p-5 lg:p-6">
+
                         <div>
+
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-(--gold-400) sm:text-xs">
                                 Schedule
                             </p>
@@ -878,9 +917,11 @@ export default function StudentDetail({
                             <h2 className="mt-1 font-serif text-lg sm:text-xl">
                                 Weekly Plan
                             </h2>
+
                         </div>
 
                         <div className="mt-5 space-y-4 sm:mt-6">
+
                             <InfoRow
                                 label="Configured"
                                 value={`${weeklyStats.configured}/7`}
@@ -906,16 +947,22 @@ export default function StudentDetail({
                                     weeklyStats.offDays
                                 )}
                             />
+
                         </div>
+
                     </div>
+
                 </section>
+
 
                 {/* =====================================================
                     ROUTINE + TASKS
                 ====================================================== */}
 
                 <section className="min-w-0 space-y-4 sm:space-y-5">
+
                     <div>
+
                         <h2 className="mt-1 font-serif text-xl sm:text-2xl">
                             Routine & Tasks
                         </h2>
@@ -925,14 +972,18 @@ export default function StudentDetail({
                             task template for each
                             day of the week.
                         </p>
+
                     </div>
 
+
                     <div className="overflow-hidden rounded-2xl border border-(--border)">
+
                         {DAYS.map(
                             (
                                 day,
                                 index
                             ) => {
+
                                 const plan =
                                     getPlan(
                                         day.value
@@ -948,16 +999,18 @@ export default function StudentDetail({
                                         key={
                                             day.value
                                         }
-                                        className={`p-4 sm:p-5 ${index >
-                                                0
+                                        className={`p-4 sm:p-5 ${index > 0
                                                 ? "border-t border-(--border)"
                                                 : ""
                                             }`}
                                     >
+
                                         <div className="grid gap-3 sm:gap-4 lg:grid-cols-[140px_1fr_auto] lg:items-center">
+
                                             {/* DAY */}
 
                                             <div className="flex items-center justify-between lg:block">
+
                                                 <div className="font-medium">
                                                     {
                                                         day.label
@@ -969,12 +1022,16 @@ export default function StudentDetail({
                                                         OFF
                                                     </div>
                                                 )}
+
                                             </div>
+
 
                                             {/* ROUTINE + TASK */}
 
                                             <div className="grid min-w-0 gap-3 md:grid-cols-2">
+
                                                 <div className="min-w-0">
+
                                                     <label
                                                         htmlFor={`routine-${day.value}`}
                                                         className="mb-1.5 block text-[11px] font-medium opacity-40 md:hidden"
@@ -991,6 +1048,7 @@ export default function StudentDetail({
                                                         onChange={(
                                                             event
                                                         ) => {
+
                                                             updatePlan(
                                                                 day.value,
                                                                 {
@@ -999,13 +1057,16 @@ export default function StudentDetail({
                                                                             .target
                                                                             .value ||
                                                                         null,
+
                                                                     routineTemplate:
                                                                         null,
                                                                 }
                                                             );
+
                                                         }}
                                                         className="min-h-11 w-full min-w-0 rounded-xl border border-(--border) bg-(--navy-900) px-3 py-3 text-sm outline-none transition focus:border-(--gold-500) sm:px-4"
                                                     >
+
                                                         <option value="">
                                                             No routine
                                                         </option>
@@ -1028,10 +1089,14 @@ export default function StudentDetail({
                                                                 </option>
                                                             )
                                                         )}
+
                                                     </select>
+
                                                 </div>
 
+
                                                 <div className="min-w-0">
+
                                                     <label
                                                         htmlFor={`tasks-${day.value}`}
                                                         className="mb-1.5 block text-[11px] font-medium opacity-40 md:hidden"
@@ -1048,6 +1113,7 @@ export default function StudentDetail({
                                                         onChange={(
                                                             event
                                                         ) => {
+
                                                             updatePlan(
                                                                 day.value,
                                                                 {
@@ -1056,13 +1122,16 @@ export default function StudentDetail({
                                                                             .target
                                                                             .value ||
                                                                         null,
+
                                                                     taskTemplate:
                                                                         null,
                                                                 }
                                                             );
+
                                                         }}
                                                         className="min-h-11 w-full min-w-0 rounded-xl border border-(--border) bg-(--navy-900) px-3 py-3 text-sm outline-none transition focus:border-(--gold-500) sm:px-4"
                                                     >
+
                                                         <option value="">
                                                             No tasks
                                                         </option>
@@ -1085,13 +1154,18 @@ export default function StudentDetail({
                                                                 </option>
                                                             )
                                                         )}
+
                                                     </select>
+
                                                 </div>
+
                                             </div>
+
 
                                             {/* OFF */}
 
                                             <div className="flex w-full">
+
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -1108,15 +1182,21 @@ export default function StudentDetail({
                                                         ? "Off"
                                                         : "Set Off"}
                                                 </button>
+
                                             </div>
+
                                         </div>
+
                                     </div>
                                 );
                             }
                         )}
+
                     </div>
 
+
                     <div className="flex w-full justify-stretch sm:justify-end">
+
                         <button
                             type="button"
                             disabled={saving}
@@ -1129,9 +1209,13 @@ export default function StudentDetail({
                                 ? "Saving..."
                                 : "Save Changes"}
                         </button>
+
                     </div>
+
                 </section>
+
             </main>
+
 
             {/* =====================================================
                 CONFIRMATION MODAL
@@ -1141,6 +1225,7 @@ export default function StudentDetail({
                 <div
                     className="fixed inset-0 z-100 flex items-end justify-center overflow-y-auto bg-black/60 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:px-4 sm:py-8"
                     onMouseDown={(event) => {
+
                         if (
                             event.target ===
                             event.currentTarget &&
@@ -1148,15 +1233,19 @@ export default function StudentDetail({
                         ) {
                             closeConfirmation();
                         }
+
                     }}
                 >
+
                     <div
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="confirmation-title"
                         className="w-full max-w-97.5 overflow-hidden rounded-2xl border border-(--border) bg-(--navy-900) shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
                     >
+
                         <div className="px-4 pb-5 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
+
                             {/* ICON */}
 
                             <div
@@ -1166,8 +1255,10 @@ export default function StudentDetail({
                                         : "bg-(--gold-500)/10 text-(--gold-400)"
                                     }`}
                             >
+
                                 {confirmationAction ===
                                     "DELETE" ? (
+
                                     <svg
                                         viewBox="0 0 24 24"
                                         fill="none"
@@ -1175,6 +1266,7 @@ export default function StudentDetail({
                                         stroke="currentColor"
                                         strokeWidth="1.8"
                                     >
+
                                         <path
                                             d="M4 7h16"
                                             strokeLinecap="round"
@@ -1195,9 +1287,12 @@ export default function StudentDetail({
                                             d="M10 10.5v5M14 10.5v5"
                                             strokeLinecap="round"
                                         />
+
                                     </svg>
+
                                 ) : confirmationAction ===
                                     "ACTIVATE" ? (
+
                                     <svg
                                         viewBox="0 0 24 24"
                                         fill="none"
@@ -1205,12 +1300,16 @@ export default function StudentDetail({
                                         stroke="currentColor"
                                         strokeWidth="1.8"
                                     >
+
                                         <path
                                             d="M12 4v16M4 12h16"
                                             strokeLinecap="round"
                                         />
+
                                     </svg>
+
                                 ) : (
+
                                     <svg
                                         viewBox="0 0 24 24"
                                         fill="none"
@@ -1218,13 +1317,18 @@ export default function StudentDetail({
                                         stroke="currentColor"
                                         strokeWidth="1.8"
                                     >
+
                                         <path
                                             d="M6 6l12 12M18 6L6 18"
                                             strokeLinecap="round"
                                         />
+
                                     </svg>
+
                                 )}
+
                             </div>
+
 
                             {/* TITLE */}
 
@@ -1241,9 +1345,11 @@ export default function StudentDetail({
                                         : "Deactivate student?"}
                             </h2>
 
+
                             {/* DESCRIPTION */}
 
                             <p className="mt-2 text-sm leading-6 opacity-55">
+
                                 {confirmationAction ===
                                     "DELETE"
                                     ? `This will permanently remove ${student.name}'s account. This action cannot be undone.`
@@ -1251,15 +1357,21 @@ export default function StudentDetail({
                                         "ACTIVATE"
                                         ? `${student.name} will be able to access their account again.`
                                         : `${student.name} will no longer be able to access their account until activated again.`}
+
                             </p>
+
                         </div>
+
 
                         {/* ACTIONS */}
 
                         <div className="grid grid-cols-2 gap-2 border-t border-(--border) px-4 py-4 sm:flex sm:items-center sm:justify-end sm:px-6">
+
                             <button
                                 type="button"
-                                disabled={actionLoading}
+                                disabled={
+                                    actionLoading
+                                }
                                 onClick={
                                     closeConfirmation
                                 }
@@ -1268,9 +1380,12 @@ export default function StudentDetail({
                                 Cancel
                             </button>
 
+
                             <button
                                 type="button"
-                                disabled={actionLoading}
+                                disabled={
+                                    actionLoading
+                                }
                                 onClick={
                                     confirmStudentAction
                                 }
@@ -1290,13 +1405,18 @@ export default function StudentDetail({
                                             ? "Activate"
                                             : "Deactivate"}
                             </button>
+
                         </div>
+
                     </div>
+
                 </div>
             )}
+
         </>
     );
 }
+
 
 /* ==========================================================
    INFO ROW
@@ -1311,6 +1431,7 @@ function InfoRow({
 }) {
     return (
         <div className="flex min-w-0 items-start justify-between gap-4 border-b border-(--border) pb-3 text-sm last:border-b-0 last:pb-0">
+
             <span className="shrink-0 opacity-40">
                 {label}
             </span>
@@ -1318,6 +1439,7 @@ function InfoRow({
             <span className="min-w-0 break-words text-right">
                 {value}
             </span>
+
         </div>
     );
 }
