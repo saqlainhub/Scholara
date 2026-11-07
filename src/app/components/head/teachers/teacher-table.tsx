@@ -959,6 +959,7 @@ export default function TeacherTable() {
 
             <div
                 className="
+                    scrollbar-portal
                     hidden
                     overflow-x-auto
                     rounded-2xl

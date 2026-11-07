@@ -20,6 +20,11 @@ type HeadProfile = {
 };
 
 export default function HeadProfileForm() {
+
+
+    
+
+
     const [exists, setExists] =
         useState(false);
 
@@ -65,6 +70,9 @@ export default function HeadProfileForm() {
         showConfirmPassword,
         setShowConfirmPassword,
     ] = useState(false);
+
+
+    const isReadOnly = exists && form.username.trim().toLowerCase() === "head";
 
     // ======================================================
     // LOAD PROFILE
@@ -589,6 +597,7 @@ export default function HeadProfileForm() {
                             <input
                                 id="head-profile-image"
                                 type="file"
+                                disabled={isReadOnly}
                                 accept="
                                     image/jpeg,
                                     image/png,
@@ -636,6 +645,7 @@ export default function HeadProfileForm() {
                         }
                         placeholder="Head name"
                         maxLength={70}
+                        disabled={isReadOnly}
                         className="
                             mt-2
                             h-12
@@ -676,6 +686,7 @@ export default function HeadProfileForm() {
                         }
                         placeholder="Username"
                         maxLength={50}
+                        disabled={isReadOnly}
                         className="
                             mt-2
                             h-12
@@ -745,6 +756,7 @@ export default function HeadProfileForm() {
                                 )
                             }
                             placeholder="Password"
+                            disabled={isReadOnly}
                             className="
                                 h-12
                                 w-full
@@ -833,6 +845,7 @@ export default function HeadProfileForm() {
                                 )
                             }
                             placeholder="Confirm password"
+                            disabled={isReadOnly}
                             className="
                                 h-12
                                 w-full
@@ -903,7 +916,8 @@ export default function HeadProfileForm() {
                     <button
                         type="button"
                         onClick={save}
-                        disabled={saving}
+                        disabled={saving || isReadOnly}
+                        
                         className="
                             w-full
                             rounded-xl
