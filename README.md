@@ -16,13 +16,13 @@ A centralized education management portal designed to organize academic activiti
 
 <br/>
 
-**[🌍 Live Demo](https://scholara-hub.vercel.app)**
+**[🌍 View Live Demo](https://scholara-hub.vercel.app)**
 
 </div>
 
 ---
 
-## 📖 About the Project
+## 📖 About Scholara
 
 **Scholara** is a smart education management system developed to simplify and organize academic management through a centralized digital platform.
 
