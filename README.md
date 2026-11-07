@@ -216,8 +216,12 @@ The following demo accounts are available for exploring the role-based interface
 
 <div align="center">
 
-### 🎓 Scholara
+### 🎓 Thanks for checking out Scholara!
+
+If you like this project, consider giving it a ⭐ on GitHub.
 
 **Organizing Education. Connecting Responsibilities. Tracking Progress.**
 
 </div>
+
+
