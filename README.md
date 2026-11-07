@@ -166,59 +166,13 @@ The application uses role-based access for:
 - `TEACHER`
 - `HEAD`
 
-## 🚀 Getting Started
+## 🚀 Live Demo
 
-Follow these instructions to run Scholara locally.
+The project was deployed using Vercel.
 
-### 1. Clone the Repository
+<text></text>
 
-```bash
-git clone YOUR_REPOSITORY_URL
-```
-
-### 2. Navigate to the Project
-
-```bash
-cd Scholar-a
-```
-
-### 3. Install Dependencies
-
-```bash
-npm install
-```
-
-### 4. Configure Environment Variables
-
-Create a `.env` file in the project root and configure the required database and authentication environment variables.
-
-Use the project's existing environment variable names and configuration.
-
-### 5. Generate Prisma Client
-
-```bash
-npx prisma generate
-```
-
-### 6. Apply Database Migrations
-
-```bash
-npx prisma migrate deploy
-```
-
-For local development, use the migration workflow configured in your project.
-
-### 7. Start the Development Server
-
-```bash
-npm run dev
-```
-
-Open your browser and visit:
-
-```text
-http://localhost:3000
-```
+**Live Website:** https://scholara-hub.vercel.app
 
 ## 🔑 Demo Accounts
 
@@ -232,18 +186,6 @@ The following demo accounts are available for exploring the role-based interface
 
 **Note:** These are demonstration credentials. Do not use them for production accounts or real student information.
 
-## 📂 Main Application Modules
-
-| Module | Description |
-|---|---|
-| Authentication | User login and role-based sessions |
-| Student Dashboard | Daily academic activities and tasks |
-| Teacher Dashboard | Student work review and evaluation |
-| Head Dashboard | Centralized academic management |
-| Weekly Planning | Academic templates and assignments |
-| Routine Management | Daily schedules and task timelines |
-| Assignment System | Task submission and resubmission |
-| Evaluation System | Teacher feedback and scoring |
 
 ## 🎯 Project Objectives
 
