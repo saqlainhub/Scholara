@@ -123,15 +123,15 @@ Scholara provides an organized assignment lifecycle:
 
 | Login Page | Student Dashboard |
 |:---:|:---:|
-| <img src="screenshots/login.png" width="400" alt="Login Page" /> | <img src="screenshots/student-dashboard.png" width="400" alt="Student Dashboard" /> |
+| <img src="login.png" width="400" alt="Login Page" /> | <img src="student portal.png" width="400" alt="Student Dashboard" /> |
 
 | Teacher Dashboard | Head Dashboard |
 |:---:|:---:|
-| <img src="screenshots/teacher-dashboard.png" width="400" alt="Teacher Dashboard" /> | <img src="screenshots/head-dashboard.png" width="400" alt="Head Dashboard" /> |
+| <img src="teacher portal.png" width="400" alt="Teacher Dashboard" /> | <img src="head portal.png" width="400" alt="Head Dashboard" /> |
 
-| Weekly Routine | Assignment Management |
+| Leaderboard | Previous Records |
 |:---:|:---:|
-| <img src="screenshots/routine.png" width="400" alt="Weekly Routine" /> | <img src="screenshots/assignments.png" width="400" alt="Assignment Management" /> |
+| <img src="leaderboard.png" width="400" alt="Weekly Routine" /> | <img src="record.png" width="400" alt="Assignment Management" /> |
 
 </div>
 
